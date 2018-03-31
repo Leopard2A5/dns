@@ -76,6 +76,18 @@ impl DnsRecord {
     pub fn dnssec_bits(&self) -> u8 {
         self.data[3] >> 4 & 0x0f
     }
+
+    pub fn rcode(&self) -> Result<RCODE> {
+        match self.data[3] & 0x0f {
+            0 => Ok(RCODE::Ok),
+            1 => Ok(RCODE::FormatError),
+            2 => Ok(RCODE::ServerFailure),
+            3 => Ok(RCODE::NameError),
+            4 => Ok(RCODE::NotImplemented),
+            5 => Ok(RCODE::Refused),
+            x => Err(Error::new(DnsMsgError::InvalidData, format!("Unknown rcode value {}", x)))
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -89,6 +101,16 @@ pub enum OPCODE {
     QUERY,
     IQUERY,
     STATUS
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum RCODE {
+    Ok,
+    FormatError,
+    ServerFailure,
+    NameError,
+    NotImplemented,
+    Refused
 }
 
 #[cfg(test)]
@@ -203,6 +225,32 @@ mod test {
             buffer[3] = i << 4;
             let rec = DnsRecord::new(buffer);
             assert_eq!(i, rec.dnssec_bits());
+        }
+    }
+
+    #[test]
+    fn should_read_response_code() {
+        let mut buffer = [0u8; 512];
+
+        let values = vec![
+            (0, RCODE::Ok),
+            (1, RCODE::FormatError),
+            (2, RCODE::ServerFailure),
+            (3, RCODE::NameError),
+            (4, RCODE::NotImplemented),
+            (5, RCODE::Refused)
+        ];
+
+        for (i, val) in values {
+            buffer[3] = i;
+            let rec = DnsRecord::new(buffer);
+            assert_eq!(Ok(val), rec.rcode());
+        }
+        for i in 6..16 {
+            buffer[3] = i;
+            let rec = DnsRecord::new(buffer);
+            let msg = format!("Unknown rcode value {}", i);
+            assert_eq!(Err(Error::new(DnsMsgError::InvalidData, msg)), rec.rcode());
         }
     }
 }
