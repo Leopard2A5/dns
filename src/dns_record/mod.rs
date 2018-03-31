@@ -33,11 +33,17 @@ impl DnsRecord {
         DnsRecord { data }
     }
 
-    pub fn id(&self) -> u16 {
-        let tmp = &self.data[0] as *const u8;
+    fn read_u16(&self, index: usize) -> u16 {
+        assert!(index <= 510, "array index out of bounds!");
+
+        let tmp = &self.data[index] as *const u8;
         unsafe {
-            *(tmp as *const u16) 
+            *(tmp as *const u16)
         }
+    }
+
+    pub fn id(&self) -> u16 {
+        self.read_u16(0)
     }
 
     pub fn qr(&self) -> QR {
@@ -87,6 +93,10 @@ impl DnsRecord {
             5 => Ok(RCODE::Refused),
             x => Err(Error::new(DnsMsgError::InvalidData, format!("Unknown rcode value {}", x)))
         }
+    }
+
+    pub fn qdcount(&self) -> u16 {
+        self.read_u16(511)
     }
 }
 
@@ -252,5 +262,14 @@ mod test {
             let msg = format!("Unknown rcode value {}", i);
             assert_eq!(Err(Error::new(DnsMsgError::InvalidData, msg)), rec.rcode());
         }
+    }
+
+    #[test]
+    fn should_read_num_questions() {
+        let mut buffer = [0u8; 512];
+        buffer[4] = 1;
+        buffer[5] = 1;
+        let rec = DnsRecord::new(buffer);
+        assert_eq!(257, rec.qdcount());
     }
 }
