@@ -60,6 +60,10 @@ impl DnsRecord {
     pub fn aa(&self) -> bool {
         (self.data[2] & 0b_0000_0100) > 0
     }
+
+    pub fn tc(&self) -> bool {
+        (self.data[2] & 0b_0000_0010) > 0
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -144,5 +148,16 @@ mod test {
         buffer[2] = 0b_0000_0100;
         let rec = DnsRecord::new(buffer);
         assert_eq!(true, rec.aa());
+    }
+
+    #[test]
+    fn should_read_truncated_message() {
+        let mut buffer = [0u8; 512];
+        let rec = DnsRecord::new(buffer);
+        assert_eq!(false, rec.tc());
+
+        buffer[2] = 0b_0000_0010;
+        let rec = DnsRecord::new(buffer);
+        assert_eq!(true, rec.tc());
     }
 }
