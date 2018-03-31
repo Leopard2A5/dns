@@ -64,6 +64,10 @@ impl DnsRecord {
     pub fn tc(&self) -> bool {
         (self.data[2] & 0b_0000_0010) > 0
     }
+
+    pub fn rd(&self) -> bool {
+        (self.data[2] & 1) > 0
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -159,5 +163,16 @@ mod test {
         buffer[2] = 0b_0000_0010;
         let rec = DnsRecord::new(buffer);
         assert_eq!(true, rec.tc());
+    }
+
+    #[test]
+    fn should_read_recursion_desired() {
+        let mut buffer = [0u8; 512];
+        let rec = DnsRecord::new(buffer);
+        assert_eq!(false, rec.rd());
+
+        buffer[2] = 1;
+        let rec = DnsRecord::new(buffer);
+        assert_eq!(true, rec.rd());
     }
 }
