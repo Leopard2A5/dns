@@ -72,6 +72,10 @@ impl DnsRecord {
     pub fn ra(&self) -> bool {
         (self.data[3] & 0b_1000_0000) > 0
     }
+
+    pub fn dnssec_bits(&self) -> u8 {
+        self.data[3] >> 4 & 0x0f
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -189,5 +193,16 @@ mod test {
         buffer[3] = 0b_1000_0000;
         let rec = DnsRecord::new(buffer);
         assert_eq!(true, rec.ra());
+    }
+
+    #[test]
+    fn should_read_dnssec_bits() {
+        let mut buffer = [0u8; 512];
+
+        for i in 0..9 {
+            buffer[3] = i << 4;
+            let rec = DnsRecord::new(buffer);
+            assert_eq!(i, rec.dnssec_bits());
+        }
     }
 }
