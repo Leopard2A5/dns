@@ -38,7 +38,7 @@ impl DnsRecord {
 
         let tmp = &self.data[index] as *const u8;
         unsafe {
-            *(tmp as *const u16)
+            u16::from_be(*(tmp as *const u16))
         }
     }
 
@@ -96,7 +96,19 @@ impl DnsRecord {
     }
 
     pub fn qdcount(&self) -> u16 {
-        self.read_u16(511)
+        self.read_u16(4)
+    }
+
+    pub fn ancount(&self) -> u16 {
+        self.read_u16(6)
+    }
+
+    pub fn nscount(&self) -> u16 {
+        self.read_u16(8)
+    }
+
+    pub fn arcount(&self) -> u16 {
+        self.read_u16(10)
     }
 }
 
@@ -268,8 +280,35 @@ mod test {
     fn should_read_num_questions() {
         let mut buffer = [0u8; 512];
         buffer[4] = 1;
-        buffer[5] = 1;
+        buffer[5] = 2;
         let rec = DnsRecord::new(buffer);
-        assert_eq!(257, rec.qdcount());
+        assert_eq!(258, rec.qdcount());
+    }
+
+    #[test]
+    fn should_read_num_answers() {
+        let mut buffer = [0u8; 512];
+        buffer[6] = 1;
+        buffer[7] = 3;
+        let rec = DnsRecord::new(buffer);
+        assert_eq!(259, rec.ancount());
+    }
+
+    #[test]
+    fn should_read_num_authority() {
+        let mut buffer = [0u8; 512];
+        buffer[8] = 1;
+        buffer[9] = 4;
+        let rec = DnsRecord::new(buffer);
+        assert_eq!(260, rec.nscount());
+    }
+
+    #[test]
+    fn should_read_num_additional() {
+        let mut buffer = [0u8; 512];
+        buffer[10] = 1;
+        buffer[11] = 5;
+        let rec = DnsRecord::new(buffer);
+        assert_eq!(261, rec.arcount());
     }
 }
