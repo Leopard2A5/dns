@@ -56,6 +56,10 @@ impl DnsRecord {
             x => Err(Error::new(DnsMsgError::InvalidData, format!("Unknown opcode {}", x)))
         }
     }
+
+    pub fn aa(&self) -> bool {
+        (self.data[2] & 0b_0000_0100) > 0
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -129,5 +133,16 @@ mod test {
             let msg = format!("Unknown opcode {}", i);
             assert_eq!(Err(Error::new(DnsMsgError::InvalidData, msg)), rec.opcode());
         }
+    }
+
+    #[test]
+    fn should_read_authoritative_answer() {
+        let mut buffer = [0u8; 512];
+        let rec = DnsRecord::new(buffer);
+        assert_eq!(false, rec.aa());
+
+        buffer[2] = 0b_0000_0100;
+        let rec = DnsRecord::new(buffer);
+        assert_eq!(true, rec.aa());
     }
 }
