@@ -115,42 +115,40 @@ impl DnsRecord {
         self.read_u16(10)
     }
 
+    fn parse_question(&self, pos: &mut usize) -> Question {
+        let mut labels = vec![];
+        loop {
+            let len = self.data[*pos];
+            *pos += 1;
+            if len == 0 {
+                break;
+            }
+
+            let mut string = String::new();
+            for _ in 0..len {
+                string.push(self.data[*pos] as char);
+                *pos += 1;
+            }
+            labels.push(string);
+        }
+
+        let qtype = self.read_u16(*pos);
+        let qtype = Qtype::from_u16(qtype).unwrap();
+
+        *pos += 2;
+        let qclass = self.read_u16(*pos);
+        let qclass = Qclass::from_u16(qclass).unwrap();
+
+        *pos += 2;
+        Question { labels, qtype, qclass }
+    }
+
     pub fn questions(&self) -> Vec<Question> {
         let mut pos = 12;
         let mut questions = vec![];
 
-        for question_no in 0..self.qdcount() {
-            let mut labels = vec![];
-            loop {
-                let len = self.data[pos];
-                pos += 1;
-                if len == 0 {
-                    break;
-                }
-
-                let mut string = String::new();
-                for _ in 0..len {
-                    string.push(self.data[pos] as char);
-                    pos += 1;
-                }
-                labels.push(string);
-            }
-
-            let qtype = self.read_u16(pos);
-            let qtype = Qtype::from_u16(qtype).unwrap();
-
-            pos += 2;
-            let qclass = self.read_u16(pos);
-            let qclass = Qclass::from_u16(qclass).unwrap();
-            pos += 2;
-
-            questions.push(
-                Question {
-                    labels,
-                    qtype,
-                    qclass
-                }
-            );
+        for _ in 0..self.qdcount() {
+            questions.push(self.parse_question(&mut pos));
         }
 
         questions
