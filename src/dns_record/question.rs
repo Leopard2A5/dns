@@ -1,6 +1,6 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Question {
-    pub labels: Vec<String>,
+pub struct Question<'a> {
+    pub labels: Vec<&'a str>,
     pub qtype: Qtype,
     pub qclass: Qclass
 }

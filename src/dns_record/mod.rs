@@ -115,21 +115,22 @@ impl DnsRecord {
         self.read_u16(10)
     }
 
-    fn parse_labels(&self, pos: &mut usize) -> Vec<String> {
+    fn parse_labels(&self, pos: &mut usize) -> Vec<&str> {
+        use std::str;
+
         let mut labels = vec![];
         loop {
-            let len = self.data[*pos];
+            let len = self.data[*pos] as usize;
             *pos += 1;
+
             if len == 0 {
                 break;
             }
 
-            let mut string = String::new();
-            for _ in 0..len {
-                string.push(self.data[*pos] as char);
-                *pos += 1;
-            }
-            labels.push(string);
+            labels.push(
+                str::from_utf8(&self.data[*pos..*pos+len]).unwrap()
+            );
+            *pos += len;
         }
 
         labels
@@ -425,12 +426,12 @@ mod test {
 
         let expected = vec![
             Question {
-                labels: vec!["www".into(), "google".into(), "com".into()],
+                labels: vec!["www", "google", "com"],
                 qtype: Qtype::A,
                 qclass: Qclass::IN
             },
             Question {
-                labels: vec!["www".into(), "heise".into(), "de".into()],
+                labels: vec!["www", "heise", "de"],
                 qtype: Qtype::NS,
                 qclass: Qclass::CS
             }
