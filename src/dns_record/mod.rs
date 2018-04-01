@@ -51,11 +51,8 @@ impl DnsRecord {
     }
 
     pub fn qr(&self) -> QR {
-        if self.data[2] & 0xa0 == 0 {
-            QR::QUERY
-        } else {
-            QR::RESPONSE
-        }
+        let val = self.data[2] >> 7;
+        QR::from_u8(val).unwrap()
     }
 
     pub fn opcode(&self) -> Result<OPCODE> {
@@ -153,10 +150,12 @@ impl DnsRecord {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub enum QR {
-    QUERY,
-    RESPONSE
+enum_from_primitive! {
+    #[derive(Debug, PartialEq, Eq)]
+    pub enum QR {
+        QUERY    = 0,
+        RESPONSE = 1
+    }
 }
 
 enum_from_primitive! {
