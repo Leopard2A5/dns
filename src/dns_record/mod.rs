@@ -59,12 +59,9 @@ impl DnsRecord {
     }
 
     pub fn opcode(&self) -> Result<OPCODE> {
-        match self.data[2] >> 3 & 0x0f {
-            0 => Ok(OPCODE::QUERY),
-            1 => Ok(OPCODE::IQUERY),
-            2 => Ok(OPCODE::STATUS),
-            x => Err(Error::new(DnsMsgError::InvalidData, format!("Unknown opcode {}", x)))
-        }
+        let val = self.data[2] >> 3 & 0x0f;
+        OPCODE::from_u8(val)
+            .ok_or(Error::new(DnsMsgError::InvalidData, format!("Unknown opcode {}", val)))
     }
 
     pub fn aa(&self) -> bool {
@@ -88,15 +85,9 @@ impl DnsRecord {
     }
 
     pub fn rcode(&self) -> Result<RCODE> {
-        match self.data[3] & 0x0f {
-            0 => Ok(RCODE::Ok),
-            1 => Ok(RCODE::FormatError),
-            2 => Ok(RCODE::ServerFailure),
-            3 => Ok(RCODE::NameError),
-            4 => Ok(RCODE::NotImplemented),
-            5 => Ok(RCODE::Refused),
-            x => Err(Error::new(DnsMsgError::InvalidData, format!("Unknown rcode value {}", x)))
-        }
+        let val = self.data[3] & 0x0f;
+        RCODE::from_u8(val)
+            .ok_or(Error::new(DnsMsgError::InvalidData, format!("Unknown rcode value {}", val)))
     }
 
     pub fn qdcount(&self) -> u16 {
@@ -168,21 +159,25 @@ pub enum QR {
     RESPONSE
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub enum OPCODE {
-    QUERY,
-    IQUERY,
-    STATUS
+enum_from_primitive! {
+    #[derive(Debug, PartialEq, Eq)]
+    pub enum OPCODE {
+        QUERY  = 0,
+        IQUERY = 1,
+        STATUS = 2
+    }
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub enum RCODE {
-    Ok,
-    FormatError,
-    ServerFailure,
-    NameError,
-    NotImplemented,
-    Refused
+enum_from_primitive! {
+    #[derive(Debug, PartialEq, Eq)]
+    pub enum RCODE {
+        Ok              = 0,
+        FormatError     = 1,
+        ServerFailure   = 2,
+        NameError       = 3,
+        NotImplemented  = 4,
+        Refused         = 5
+    }
 }
 
 #[cfg(test)]
