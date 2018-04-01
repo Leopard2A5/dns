@@ -116,36 +116,44 @@ impl DnsRecord {
     }
 
     pub fn questions(&self) -> Vec<Question> {
-        let mut labels = vec![];
         let mut pos = 12;
-        loop {
-            let len = self.data[pos];
-            pos += 1;
-            if len == 0 {
-                break;
+        let mut questions = vec![];
+
+        for question_no in 0..self.qdcount() {
+            let mut labels = vec![];
+            loop {
+                let len = self.data[pos];
+                pos += 1;
+                if len == 0 {
+                    break;
+                }
+
+                let mut string = String::new();
+                for _ in 0..len {
+                    string.push(self.data[pos] as char);
+                    pos += 1;
+                }
+                labels.push(string);
             }
 
-            let mut string = String::new();
-            for _ in 0..len {
-                string.push(self.data[pos] as char);
-                pos += 1;
-            }
-            labels.push(string);
+            let qtype = self.read_u16(pos);
+            let qtype = Qtype::from_u16(qtype).unwrap();
+
+            pos += 2;
+            let qclass = self.read_u16(pos);
+            let qclass = Qclass::from_u16(qclass).unwrap();
+            pos += 2;
+
+            questions.push(
+                Question {
+                    labels,
+                    qtype,
+                    qclass
+                }
+            );
         }
 
-        let qtype = self.read_u16(pos);
-        let qtype = Qtype::from_u16(qtype).unwrap();
-
-        let qclass = self.read_u16(pos + 2);
-        let qclass = Qclass::from_u16(qclass).unwrap();
-
-        vec![
-            Question {
-                labels,
-                qtype,
-                qclass
-            }
-        ]
+        questions
     }
 }
 
@@ -372,7 +380,7 @@ mod test {
     }
 
     #[test]
-    fn should_read_question() {
+    fn should_read_one_question() {
         let mut buffer = [0u8; 512];
         buffer[5] = 1; // 1 question
 
@@ -391,5 +399,40 @@ mod test {
 
         let rec = DnsRecord::new(buffer);
         assert_eq!(vec![expected], rec.questions());
+    }
+
+    #[test]
+    fn should_read_multiple_questions() {
+        let mut buffer = [0u8; 512];
+        buffer[5] = 2; // 2 questions
+
+        let labels = encode_labels(vec!["www", "google", "com"]);
+        let end = 12 + labels.len();
+        buffer[12..end].copy_from_slice(&labels);
+        buffer[end+1] = Qtype::A as u8;
+        buffer[end+3] = Qclass::IN as u8;
+
+        let labels = encode_labels(vec!["www", "heise", "de"]);
+        let start = end + 4;
+        let end = start + labels.len();
+        buffer[start..end].copy_from_slice(&labels);
+        buffer[end+1] = Qtype::NS as u8;
+        buffer[end+3] = Qclass::CS as u8;
+
+        let expected = vec![
+            Question {
+                labels: vec!["www".into(), "google".into(), "com".into()],
+                qtype: Qtype::A,
+                qclass: Qclass::IN
+            },
+            Question {
+                labels: vec!["www".into(), "heise".into(), "de".into()],
+                qtype: Qtype::NS,
+                qclass: Qclass::CS
+            }
+        ];
+
+        let rec = DnsRecord::new(buffer);
+        assert_eq!(expected, rec.questions());
     }
 }
