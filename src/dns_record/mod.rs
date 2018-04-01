@@ -1,5 +1,9 @@
+mod question;
+
+use self::question::*;
 use std::result;
 use std::borrow::Cow;
+use num::FromPrimitive;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum DnsMsgError {
@@ -109,6 +113,39 @@ impl DnsRecord {
 
     pub fn arcount(&self) -> u16 {
         self.read_u16(10)
+    }
+
+    pub fn questions(&self) -> Vec<Question> {
+        let mut labels = vec![];
+        let mut pos = 12;
+        loop {
+            let len = self.data[pos];
+            pos += 1;
+            if len == 0 {
+                break;
+            }
+
+            let mut string = String::new();
+            for _ in 0..len {
+                string.push(self.data[pos] as char);
+                pos += 1;
+            }
+            labels.push(string);
+        }
+
+        let qtype = self.read_u16(pos);
+        let qtype = Qtype::from_u16(qtype).unwrap();
+
+        let qclass = self.read_u16(pos + 2);
+        let qclass = Qclass::from_u16(qclass).unwrap();
+
+        vec![
+            Question {
+                labels,
+                qtype,
+                qclass
+            }
+        ]
     }
 }
 
@@ -310,5 +347,49 @@ mod test {
         buffer[11] = 5;
         let rec = DnsRecord::new(buffer);
         assert_eq!(261, rec.arcount());
+    }
+
+    fn encode_label(text: &str) -> Vec<u8> {
+        use std::ffi::CString;
+
+        let mut ret = vec![];
+        let text = CString::new(text).unwrap();
+        let bytes = text.as_bytes();
+
+        ret.push(bytes.len() as u8);
+        ret.extend(bytes.iter());
+
+        ret
+    }
+
+    fn encode_labels(texts: Vec<&str>) -> Vec<u8> {
+        let mut ret = texts.iter()
+            .map(|txt| encode_label(txt))
+            .fold(vec![], |mut a, t| { a.extend(t.iter()); a });
+
+        ret.push(0);
+        ret
+    }
+
+    #[test]
+    fn should_read_question() {
+        let mut buffer = [0u8; 512];
+        buffer[5] = 1; // 1 question
+
+        let labels = encode_labels(vec!["www", "google", "com"]);
+
+        let end = 12 + labels.len();
+        buffer[12..end].copy_from_slice(&labels);
+        buffer[end+1] = Qtype::A as u8;
+        buffer[end+3] = Qclass::IN as u8;
+
+        let expected = Question {
+            labels: vec!["www".into(), "google".into(), "com".into()],
+            qtype: Qtype::A,
+            qclass: Qclass::IN
+        };
+
+        let rec = DnsRecord::new(buffer);
+        assert_eq!(vec![expected], rec.questions());
     }
 }
