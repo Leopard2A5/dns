@@ -115,7 +115,7 @@ impl DnsRecord {
         self.read_u16(10)
     }
 
-    fn parse_question(&self, pos: &mut usize) -> Question {
+    fn parse_labels(&self, pos: &mut usize) -> Vec<String> {
         let mut labels = vec![];
         loop {
             let len = self.data[*pos];
@@ -131,6 +131,12 @@ impl DnsRecord {
             }
             labels.push(string);
         }
+
+        labels
+    }
+
+    fn parse_question(&self, pos: &mut usize) -> Question {
+        let labels = self.parse_labels(pos);
 
         let qtype = self.read_u16(*pos);
         let qtype = Qtype::from_u16(qtype).unwrap();
