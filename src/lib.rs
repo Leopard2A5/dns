@@ -3,15 +3,14 @@ extern crate num;
 
 mod dns_record;
 mod enums;
+mod errors;
 
 pub use self::dns_record::{
     DnsRecord,
-    DnsMsgError,
-    Error,
-    Result,
     QR,
     OPCODE,
     RCODE
 };
 
 pub use self::enums::*;
+pub use self::errors::*;
