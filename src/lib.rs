@@ -7,12 +7,7 @@ mod builder;
 mod enums;
 mod errors;
 
-pub use self::dns_record::{
-    DnsRecord,
-    QR,
-    OPCODE,
-    RCODE
-};
+pub use self::dns_record::DnsRecord;
 
 pub use self::enums::*;
 pub use self::errors::*;

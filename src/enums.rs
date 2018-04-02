@@ -1,4 +1,33 @@
 enum_from_primitive! {
+    #[derive(Debug, PartialEq, Eq)]
+    pub enum QR {
+        QUERY    = 0,
+        RESPONSE = 1
+    }
+}
+
+enum_from_primitive! {
+    #[derive(Debug, PartialEq, Eq)]
+    pub enum OPCODE {
+        QUERY  = 0,
+        IQUERY = 1,
+        STATUS = 2
+    }
+}
+
+enum_from_primitive! {
+    #[derive(Debug, PartialEq, Eq)]
+    pub enum RCODE {
+        Ok              = 0,
+        FormatError     = 1,
+        ServerFailure   = 2,
+        NameError       = 3,
+        NotImplemented  = 4,
+        Refused         = 5
+    }
+}
+
+enum_from_primitive! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum Qtype {
         A        =   1,
