@@ -1,6 +1,7 @@
 mod question;
 
 use self::question::*;
+use ::enums::*;
 use std::result;
 use std::borrow::Cow;
 use std::collections::VecDeque;
