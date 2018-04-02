@@ -1,14 +1,17 @@
 use rand::{Rng, thread_rng};
+use ::enums::*;
 
 #[derive(Debug)]
 pub struct DnsMessageBuilder {
     id: u16,
+    qr: QR,
 }
 
 impl DnsMessageBuilder {
     pub fn new() -> Self {
         DnsMessageBuilder {
             id: thread_rng().gen(),
+            qr: QR::QUERY,
         }
     }
 
@@ -17,10 +20,16 @@ impl DnsMessageBuilder {
         self
     }
 
+    pub fn with_qr(mut self, val: QR) -> Self {
+        self.qr = val;
+        self
+    }
+
     pub fn build(self) -> [u8; 512] {
         let mut buffer = [0u8; 512];
 
         write_u16(&mut buffer, 0, self.id);
+        buffer[2] = (self.qr as u8) << 7;
 
         buffer
     }
@@ -64,5 +73,21 @@ mod test {
             .build();
         let rec = DnsRecord::new(buffer);
         assert_eq!(5, rec.id());
+    }
+
+    #[test]
+    fn should_default_to_query() {
+        let buffer = DnsMessageBuilder::new().build();
+        let rec = DnsRecord::new(buffer);
+        assert_eq!(QR::QUERY, rec.qr());
+    }
+
+    #[test]
+    fn should_allow_qr_override() {
+        let buffer = DnsMessageBuilder::new()
+            .with_qr(QR::RESPONSE)
+            .build();
+        let rec = DnsRecord::new(buffer);
+        assert_eq!(QR::RESPONSE, rec.qr());
     }
 }
