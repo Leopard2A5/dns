@@ -3,11 +3,13 @@ mod question;
 use self::question::*;
 use std::result;
 use std::borrow::Cow;
+use std::collections::VecDeque;
 use num::FromPrimitive;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum DnsMsgError {
     InvalidData,
+    CyclicLabelRef
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -103,43 +105,52 @@ impl DnsRecord {
         self.read_u16(10)
     }
 
-    fn parse_label(&self, pos: &mut usize) -> Option<&str> {
+    fn parse_label(&self, pos: &mut usize, visited_positions: &mut VecDeque<usize>) -> Result<Option<&str>> {
         use std::str;
+
+        visited_positions.push_back(*pos);
 
         let len = self.data[*pos] as usize;
         *pos += 1;
 
         if len == 0 {
-            return None;
+            return Ok(None);
         }
 
         if len & 0xc0 == 0xc0 {
             let mut jump = (self.read_u16(*pos - 1) ^ 0xc000) as usize;
+
+            if visited_positions.contains(&jump) {
+                return Err(Error::new(DnsMsgError::CyclicLabelRef, "Encountered cyclic label reference"));
+            }
+
             *pos += 1; // advance pos beyond jump addr
-            return self.parse_label(&mut jump);
+            return self.parse_label(&mut jump, visited_positions);
         }
 
         let ret = str::from_utf8(&self.data[*pos..*pos+len]).unwrap();
         *pos += len;
 
-        Some(ret)
+        Ok(Some(ret))
     }
 
-    fn parse_labels(&self, pos: &mut usize) -> Vec<&str> {
+    fn parse_labels(&self, pos: &mut usize) -> Result<Vec<&str>> {
         let mut labels = vec![];
         loop {
-            if let Some(lbl) = self.parse_label(pos) {
+            let mut visited_positions = VecDeque::new();
+
+            if let Some(lbl) = self.parse_label(pos, &mut visited_positions)? {
                 labels.push(lbl);
             } else {
                 break;
             }
         }
 
-        labels
+        Ok(labels)
     }
 
-    fn parse_question(&self, pos: &mut usize) -> Question {
-        let labels = self.parse_labels(pos);
+    fn parse_question(&self, pos: &mut usize) -> Result<Question> {
+        let labels = self.parse_labels(pos)?;
 
         let qtype = self.read_u16(*pos);
         let qtype = Qtype::from_u16(qtype).unwrap();
@@ -149,18 +160,18 @@ impl DnsRecord {
         let qclass = Qclass::from_u16(qclass).unwrap();
 
         *pos += 2;
-        Question { labels, qtype, qclass }
+        Ok(Question { labels, qtype, qclass })
     }
 
-    pub fn questions(&self) -> Vec<Question> {
+    pub fn questions(&self) -> Result<Vec<Question>> {
         let mut pos = 12;
         let mut questions = vec![];
 
         for _ in 0..self.qdcount() {
-            questions.push(self.parse_question(&mut pos));
+            questions.push(self.parse_question(&mut pos)?);
         }
 
-        questions
+        Ok(questions)
     }
 }
 
@@ -411,7 +422,7 @@ mod test {
         };
 
         let rec = DnsRecord::new(buffer);
-        assert_eq!(vec![expected], rec.questions());
+        assert_eq!(Ok(vec![expected]), rec.questions());
     }
 
     #[test]
@@ -446,7 +457,7 @@ mod test {
         ];
 
         let rec = DnsRecord::new(buffer);
-        assert_eq!(expected, rec.questions());
+        assert_eq!(Ok(expected), rec.questions());
     }
 
     #[test]
@@ -483,6 +494,25 @@ mod test {
         };
 
         let rec = DnsRecord::new(buffer);
-        assert_eq!(vec![expected], rec.questions());
+        assert_eq!(Ok(vec![expected]), rec.questions());
+    }
+
+    #[test]
+    fn should_recognize_cyclic_label_refs() {
+        let mut buffer = [0u8; 512];
+        buffer[5] = 1; // 1 question
+
+        buffer[12] = 0xc0;
+        buffer[13] = 14;
+        buffer[14] = 0xc0;
+        buffer[15] = 12;
+        buffer[16] = 0; // 0 terminator
+
+        buffer[18] = Qtype::A as u8;
+        buffer[20] = Qclass::IN as u8;
+
+        let rec = DnsRecord::new(buffer);
+        let expected = Err(Error::new(DnsMsgError::CyclicLabelRef, "Encountered cyclic label reference"));
+        assert_eq!(expected, rec.questions());
     }
 }
