@@ -12,6 +12,11 @@ impl DnsMessageBuilder {
         }
     }
 
+    pub fn with_id(mut self, id: u16) -> Self {
+        self.id = id;
+        self
+    }
+
     pub fn build(self) -> [u8; 512] {
         let mut buffer = [0u8; 512];
 
@@ -50,5 +55,14 @@ mod test {
         }
 
         assert_eq!(num_tests, ids.len());
+    }
+
+    #[test]
+    fn should_allow_id_override() {
+        let buffer = DnsMessageBuilder::new()
+            .with_id(5)
+            .build();
+        let rec = DnsRecord::new(buffer);
+        assert_eq!(5, rec.id());
     }
 }
