@@ -103,22 +103,36 @@ impl DnsRecord {
         self.read_u16(10)
     }
 
-    fn parse_labels(&self, pos: &mut usize) -> Vec<&str> {
+    fn parse_label(&self, pos: &mut usize) -> Option<&str> {
         use std::str;
 
+        let len = self.data[*pos] as usize;
+        *pos += 1;
+
+        if len == 0 {
+            return None;
+        }
+
+        if len & 0xc0 == 0xc0 {
+            let mut jump = (self.read_u16(*pos - 1) ^ 0xc000) as usize;
+            *pos += 1; // advance pos beyond jump addr
+            return self.parse_label(&mut jump);
+        }
+
+        let ret = str::from_utf8(&self.data[*pos..*pos+len]).unwrap();
+        *pos += len;
+
+        Some(ret)
+    }
+
+    fn parse_labels(&self, pos: &mut usize) -> Vec<&str> {
         let mut labels = vec![];
         loop {
-            let len = self.data[*pos] as usize;
-            *pos += 1;
-
-            if len == 0 {
+            if let Some(lbl) = self.parse_label(pos) {
+                labels.push(lbl);
+            } else {
                 break;
             }
-
-            labels.push(
-                str::from_utf8(&self.data[*pos..*pos+len]).unwrap()
-            );
-            *pos += len;
         }
 
         labels
@@ -391,7 +405,7 @@ mod test {
         buffer[end+3] = Qclass::IN as u8;
 
         let expected = Question {
-            labels: vec!["www".into(), "google".into(), "com".into()],
+            labels: vec!["www", "google", "com"],
             qtype: Qtype::A,
             qclass: Qclass::IN
         };
@@ -433,5 +447,42 @@ mod test {
 
         let rec = DnsRecord::new(buffer);
         assert_eq!(expected, rec.questions());
+    }
+
+    #[test]
+    fn should_read_questions_with_label_refs() {
+        let mut buffer = [0u8; 512];
+        buffer[5] = 1; // 1 question
+
+        let labels = encode_labels(vec!["aaa", "xxx"]);
+
+        let mut end = 12 + labels.len();
+        buffer[12..end].copy_from_slice(&labels);
+
+        // one more element, override 0 terminator
+        buffer[end-1] = 0xc0;
+        buffer[end] = 12; // jump to 12
+
+        buffer[end+1] = 0xc0;
+        buffer[end+2] = 16; // jump to 16
+
+        end += 3;
+        let labels = encode_labels(vec!["fff"]);
+        buffer[end..end+labels.len()].copy_from_slice(&labels);
+        end += labels.len();
+
+        buffer[end] = 0; // replace 0 terminator
+
+        buffer[end+1] = Qtype::A as u8;
+        buffer[end+3] = Qclass::IN as u8;
+
+        let expected = Question {
+            labels: vec!["aaa", "xxx", "aaa", "xxx", "fff"],
+            qtype: Qtype::A,
+            qclass: Qclass::IN
+        };
+
+        let rec = DnsRecord::new(buffer);
+        assert_eq!(vec![expected], rec.questions());
     }
 }
