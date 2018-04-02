@@ -5,6 +5,7 @@ use ::enums::*;
 pub struct DnsMessageBuilder {
     id: u16,
     qr: QR,
+    opcode: OPCODE,
 }
 
 impl DnsMessageBuilder {
@@ -12,6 +13,7 @@ impl DnsMessageBuilder {
         DnsMessageBuilder {
             id: thread_rng().gen(),
             qr: QR::QUERY,
+            opcode: OPCODE::QUERY,
         }
     }
 
@@ -25,11 +27,17 @@ impl DnsMessageBuilder {
         self
     }
 
+    pub fn with_opcode(mut self, val: OPCODE) -> Self {
+        self.opcode = val;
+        self
+    }
+
     pub fn build(self) -> [u8; 512] {
         let mut buffer = [0u8; 512];
 
         write_u16(&mut buffer, 0, self.id);
         buffer[2] = (self.qr as u8) << 7;
+        buffer[2] |= (self.opcode as u8) << 3;
 
         buffer
     }
@@ -89,5 +97,22 @@ mod test {
             .build();
         let rec = DnsRecord::new(buffer);
         assert_eq!(QR::RESPONSE, rec.qr());
+    }
+
+    #[test]
+    fn should_default_to_query_opcode() {
+        let buffer = DnsMessageBuilder::new().build();
+        let rec = DnsRecord::new(buffer);
+        assert_eq!(Ok(OPCODE::QUERY), rec.opcode());
+    }
+
+    #[test]
+    fn should_allow_opcode_override() {
+        let buffer = DnsMessageBuilder::new()
+            .with_opcode(OPCODE::IQUERY)
+            .build();
+        let rec = DnsRecord::new(buffer);
+        assert_eq!(QR::QUERY, rec.qr());
+        assert_eq!(Ok(OPCODE::IQUERY), rec.opcode());
     }
 }
