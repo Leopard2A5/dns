@@ -6,3 +6,4 @@ authors = ["René Perschon <rperschon85@gmail.com>"]
 [dependencies]
 num = "0.1.42"
 enum_primitive = "0.1.1"
+rand = "0.4.2"
