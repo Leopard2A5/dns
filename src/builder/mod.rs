@@ -8,6 +8,7 @@ pub struct DnsMessageBuilder {
     opcode: OPCODE,
     aa: bool,
     rd: bool,
+    ra: bool,
 }
 
 impl DnsMessageBuilder {
@@ -18,6 +19,7 @@ impl DnsMessageBuilder {
             opcode: OPCODE::QUERY,
             aa: false,
             rd: false,
+            ra: false,
         }
     }
 
@@ -46,6 +48,11 @@ impl DnsMessageBuilder {
         self
     }
 
+    pub fn with_ra(mut self, val: bool) -> Self {
+        self.ra = val;
+        self
+    }
+
     pub fn build(self) -> [u8; 512] {
         let mut buffer = [0u8; 512];
 
@@ -55,6 +62,7 @@ impl DnsMessageBuilder {
         buffer[2] |= (self.aa as u8) << 2;
         // TODO: set truncated message bit
         buffer[2] |= self.rd as u8;
+        buffer[3] = (self.ra as u8) << 7;
 
         buffer
     }
@@ -170,5 +178,21 @@ mod test {
             .build();
         let rec = DnsRecord::new(buffer);
         assert!(rec.rd());
+    }
+
+    #[test]
+    fn should_default_to_no_recursion_available() {
+        let buffer = DnsMessageBuilder::new().build();
+        let rec = DnsRecord::new(buffer);
+        assert_eq!(false, rec.ra());
+    }
+
+    #[test]
+    fn should_allow_setting_recursion_avaiable() {
+        let buffer = DnsMessageBuilder::new()
+            .with_ra(true)
+            .build();
+        let rec = DnsRecord::new(buffer);
+        assert!(rec.ra());
     }
 }
