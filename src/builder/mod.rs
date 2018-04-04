@@ -139,4 +139,13 @@ mod test {
         let rec = DnsRecord::new(buffer);
         assert!(rec.aa());
     }
+
+    #[test]
+    fn should_default_to_non_truncated_message() {
+        let buffer = DnsMessageBuilder::new().build();
+        let rec = DnsRecord::new(buffer);
+        assert_eq!(false, rec.tc());
+    }
+
+
 }
