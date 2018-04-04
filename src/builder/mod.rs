@@ -9,6 +9,7 @@ pub struct DnsMessageBuilder {
     aa: bool,
     rd: bool,
     ra: bool,
+    z: u8,
 }
 
 impl DnsMessageBuilder {
@@ -20,6 +21,7 @@ impl DnsMessageBuilder {
             aa: false,
             rd: false,
             ra: false,
+            z: 0,
         }
     }
 
@@ -53,16 +55,27 @@ impl DnsMessageBuilder {
         self
     }
 
+    /// Set the message's dnssec (z) bits. Only the three
+    /// least significant bits of `val` will be taken into account, i.e.
+    /// val should be a right-alined byte.
+    pub fn with_dnssec_bits(mut self, val: u8) -> Self {
+        self.z = val & 0b_0000_0111;
+        self
+    }
+
     pub fn build(self) -> [u8; 512] {
         let mut buffer = [0u8; 512];
 
         write_u16(&mut buffer, 0, self.id);
+
         buffer[2] = (self.qr as u8) << 7;
         buffer[2] |= (self.opcode as u8) << 3;
         buffer[2] |= (self.aa as u8) << 2;
         // TODO: set truncated message bit
         buffer[2] |= self.rd as u8;
+
         buffer[3] = (self.ra as u8) << 7;
+        buffer[3] |= self.z << 4;
 
         buffer
     }
@@ -194,5 +207,21 @@ mod test {
             .build();
         let rec = DnsRecord::new(buffer);
         assert!(rec.ra());
+    }
+
+    #[test]
+    fn should_default_to_zeroed_dnssec_bits() {
+        let buffer = DnsMessageBuilder::new().build();
+        let rec = DnsRecord::new(buffer);
+        assert_eq!(0, rec.dnssec_bits() & 0b_0111_0000);
+    }
+
+    #[test]
+    fn should_allow_setting_dnssec_bits() {
+        let buffer = DnsMessageBuilder::new()
+            .with_dnssec_bits(0xff)
+            .build();
+        let rec = DnsRecord::new(buffer);
+        assert_eq!(0b_0000_0111, rec.dnssec_bits());
     }
 }
