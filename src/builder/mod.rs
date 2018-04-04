@@ -10,6 +10,7 @@ pub struct DnsMessageBuilder {
     rd: bool,
     ra: bool,
     z: u8,
+    rcode: RCODE,
 }
 
 impl DnsMessageBuilder {
@@ -22,6 +23,7 @@ impl DnsMessageBuilder {
             rd: false,
             ra: false,
             z: 0,
+            rcode: RCODE::Ok,
         }
     }
 
@@ -63,6 +65,11 @@ impl DnsMessageBuilder {
         self
     }
 
+    pub fn with_rcode(mut self, val: RCODE) -> Self {
+        self.rcode = val;
+        self
+    }
+
     pub fn build(self) -> [u8; 512] {
         let mut buffer = [0u8; 512];
 
@@ -76,6 +83,7 @@ impl DnsMessageBuilder {
 
         buffer[3] = (self.ra as u8) << 7;
         buffer[3] |= self.z << 4;
+        buffer[3] |= (self.rcode as u8) & 0x0f;
 
         buffer
     }
@@ -223,5 +231,21 @@ mod test {
             .build();
         let rec = DnsRecord::new(buffer);
         assert_eq!(0b_0000_0111, rec.dnssec_bits());
+    }
+
+    #[test]
+    fn should_default_to_response_code_ok() {
+        let buffer = DnsMessageBuilder::new().build();
+        let rec = DnsRecord::new(buffer);
+        assert_eq!(Ok(RCODE::Ok), rec.rcode());
+    }
+
+    #[test]
+    fn should_allow_setting_the_response_code() {
+        let buffer = DnsMessageBuilder::new()
+            .with_rcode(RCODE::NotImplemented)
+            .build();
+        let rec = DnsRecord::new(buffer);
+        assert_eq!(Ok(RCODE::NotImplemented), rec.rcode());
     }
 }
