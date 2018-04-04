@@ -6,6 +6,7 @@ pub struct DnsMessageBuilder {
     id: u16,
     qr: QR,
     opcode: OPCODE,
+    aa: bool,
 }
 
 impl DnsMessageBuilder {
@@ -14,6 +15,7 @@ impl DnsMessageBuilder {
             id: thread_rng().gen(),
             qr: QR::QUERY,
             opcode: OPCODE::QUERY,
+            aa: false,
         }
     }
 
@@ -32,12 +34,18 @@ impl DnsMessageBuilder {
         self
     }
 
+    pub fn with_aa(mut self, val: bool) -> Self {
+        self.aa = val;
+        self
+    }
+
     pub fn build(self) -> [u8; 512] {
         let mut buffer = [0u8; 512];
 
         write_u16(&mut buffer, 0, self.id);
         buffer[2] = (self.qr as u8) << 7;
         buffer[2] |= (self.opcode as u8) << 3;
+        buffer[2] |= (self.aa as u8) << 2;
 
         buffer
     }
@@ -114,5 +122,21 @@ mod test {
         let rec = DnsRecord::new(buffer);
         assert_eq!(QR::QUERY, rec.qr());
         assert_eq!(Ok(OPCODE::IQUERY), rec.opcode());
+    }
+
+    #[test]
+    fn should_default_to_non_authoritative_answer() {
+        let buffer = DnsMessageBuilder::new().build();
+        let rec = DnsRecord::new(buffer);
+        assert_eq!(false, rec.aa());
+    }
+
+    #[test]
+    fn should_allow_aa_override() {
+        let buffer = DnsMessageBuilder::new()
+            .with_aa(true)
+            .build();
+        let rec = DnsRecord::new(buffer);
+        assert!(rec.aa());
     }
 }
