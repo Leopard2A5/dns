@@ -1,5 +1,5 @@
 enum_from_primitive! {
-    #[derive(Debug, PartialEq, Eq)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum QR {
         QUERY    = 0,
         RESPONSE = 1
@@ -7,7 +7,7 @@ enum_from_primitive! {
 }
 
 enum_from_primitive! {
-    #[derive(Debug, PartialEq, Eq)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum OPCODE {
         QUERY  = 0,
         IQUERY = 1,
@@ -16,7 +16,7 @@ enum_from_primitive! {
 }
 
 enum_from_primitive! {
-    #[derive(Debug, PartialEq, Eq)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum RCODE {
         Ok              = 0,
         FormatError     = 1,
