@@ -6,8 +6,12 @@ mod dns_record;
 mod builder;
 mod enums;
 mod errors;
+mod labels;
 
-pub use self::dns_record::DnsRecord;
+pub use self::dns_record::{
+    DnsRecord,
+    Question
+};
 
 pub use self::enums::*;
 pub use self::errors::*;

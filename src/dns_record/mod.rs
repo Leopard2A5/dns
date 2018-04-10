@@ -1,10 +1,11 @@
 mod question;
 
-use self::question::*;
 use ::enums::*;
 use ::errors::*;
 use std::collections::VecDeque;
 use num::FromPrimitive;
+
+pub use self::question::Question;
 
 pub struct DnsRecord {
     data: [u8; 512]
@@ -136,7 +137,7 @@ impl DnsRecord {
         let qclass = Qclass::from_u16(qclass).unwrap();
 
         *pos += 2;
-        Ok(Question { labels, qtype, qclass })
+        Ok(Question::new(labels, qtype, qclass))
     }
 
     pub fn questions(&self) -> Result<Vec<Question>> {
@@ -154,6 +155,7 @@ impl DnsRecord {
 #[cfg(test)]
 mod test {
     use super::*;
+    use ::labels::encode_labels;
 
     #[test]
     fn should_read_id() {
@@ -328,28 +330,6 @@ mod test {
         assert_eq!(261, rec.arcount());
     }
 
-    fn encode_label(text: &str) -> Vec<u8> {
-        use std::ffi::CString;
-
-        let mut ret = vec![];
-        let text = CString::new(text).unwrap();
-        let bytes = text.as_bytes();
-
-        ret.push(bytes.len() as u8);
-        ret.extend(bytes.iter());
-
-        ret
-    }
-
-    fn encode_labels(texts: Vec<&str>) -> Vec<u8> {
-        let mut ret = texts.iter()
-            .map(|txt| encode_label(txt))
-            .fold(vec![], |mut a, t| { a.extend(t.iter()); a });
-
-        ret.push(0);
-        ret
-    }
-
     #[test]
     fn should_read_one_question() {
         let mut buffer = [0u8; 512];
@@ -362,11 +342,11 @@ mod test {
         buffer[end+1] = Qtype::A as u8;
         buffer[end+3] = Qclass::IN as u8;
 
-        let expected = Question {
-            labels: vec!["www", "google", "com"],
-            qtype: Qtype::A,
-            qclass: Qclass::IN
-        };
+        let expected = Question::new(
+            vec!["www", "google", "com"],
+            Qtype::A,
+            Qclass::IN
+        );
 
         let rec = DnsRecord::new(buffer);
         assert_eq!(Ok(vec![expected]), rec.questions());
@@ -391,16 +371,16 @@ mod test {
         buffer[end+3] = Qclass::CS as u8;
 
         let expected = vec![
-            Question {
-                labels: vec!["www", "google", "com"],
-                qtype: Qtype::A,
-                qclass: Qclass::IN
-            },
-            Question {
-                labels: vec!["www", "heise", "de"],
-                qtype: Qtype::NS,
-                qclass: Qclass::CS
-            }
+            Question::new(
+                vec!["www", "google", "com"],
+                Qtype::A,
+                Qclass::IN
+            ),
+            Question::new(
+                vec!["www", "heise", "de"],
+                Qtype::NS,
+                Qclass::CS
+            )
         ];
 
         let rec = DnsRecord::new(buffer);
@@ -434,14 +414,16 @@ mod test {
         buffer[end+1] = Qtype::A as u8;
         buffer[end+3] = Qclass::IN as u8;
 
-        let expected = Question {
-            labels: vec!["aaa", "xxx", "aaa", "xxx", "fff"],
-            qtype: Qtype::A,
-            qclass: Qclass::IN
-        };
+        let expected = Question::new(
+            vec!["aaa", "xxx", "aaa", "xxx", "fff"],
+            Qtype::A,
+            Qclass::IN
+        );
 
         let rec = DnsRecord::new(buffer);
-        assert_eq!(Ok(vec![expected]), rec.questions());
+        let questions = rec.questions().unwrap();
+        let q = &questions[0];
+        assert_eq!(expected, *q);
     }
 
     #[test]

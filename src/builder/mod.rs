@@ -1,8 +1,10 @@
 use rand::{Rng, thread_rng};
 use ::enums::*;
+use ::Question;
+use ::labels::*;
 
 #[derive(Debug)]
-pub struct DnsMessageBuilder {
+pub struct DnsMessageBuilder<'a> {
     id: u16,
     qr: QR,
     opcode: OPCODE,
@@ -11,9 +13,10 @@ pub struct DnsMessageBuilder {
     ra: bool,
     z: u8,
     rcode: RCODE,
+    questions: Vec<Question<'a>>,
 }
 
-impl DnsMessageBuilder {
+impl<'a> DnsMessageBuilder<'a> {
     pub fn new() -> Self {
         DnsMessageBuilder {
             id: thread_rng().gen(),
@@ -24,6 +27,7 @@ impl DnsMessageBuilder {
             ra: false,
             z: 0,
             rcode: RCODE::Ok,
+            questions: vec![],
         }
     }
 
@@ -70,7 +74,14 @@ impl DnsMessageBuilder {
         self
     }
 
+    pub fn add_question(mut self, question: Question<'a>) -> Self {
+        self.questions.push(question);
+        self
+    }
+
     pub fn build(self) -> [u8; 512] {
+        use std::borrow::Borrow;
+
         let mut buffer = [0u8; 512];
 
         write_u16(&mut buffer, 0, self.id);
@@ -84,6 +95,24 @@ impl DnsMessageBuilder {
         buffer[3] = (self.ra as u8) << 7;
         buffer[3] |= self.z << 4;
         buffer[3] |= (self.rcode as u8) & 0x0f;
+
+        write_u16(&mut buffer, 4, self.questions.len() as u16);
+
+        let mut pos = 12;
+        for question in self.questions {
+            let labels = question.labels;
+            let borrows: Vec<_> = labels.iter().map(|l| l.borrow()).collect();
+            let lbl_buffer = encode_labels(borrows);
+
+            buffer[pos..pos + lbl_buffer.len()].copy_from_slice(&lbl_buffer);
+            pos += lbl_buffer.len();
+
+            write_u16(&mut buffer, pos, question.qtype as u16);
+            pos += 2;
+
+            write_u16(&mut buffer, pos, question.qclass as u16);
+            pos += 2;
+        }
 
         buffer
     }
@@ -103,6 +132,7 @@ fn write_u16(target: &mut[u8], pos: usize, val: u16) {
 mod test {
     use super::*;
     use ::DnsRecord;
+    use ::Question;
 
     #[test]
     fn should_init_with_default_id() {
@@ -247,5 +277,30 @@ mod test {
             .build();
         let rec = DnsRecord::new(buffer);
         assert_eq!(Ok(RCODE::NotImplemented), rec.rcode());
+    }
+
+    #[test]
+    fn should_allow_adding_questions() {
+        let buffer = DnsMessageBuilder::new()
+            .add_question(Question::new(
+                vec!["www", "aaa"],
+                Qtype::MD,
+                Qclass::Wildcard
+            ))
+            .add_question(Question::new(
+                vec!["heise", "de"],
+                Qtype::A,
+                Qclass::IN
+            ))
+            .build();
+        let rec = DnsRecord::new(buffer);
+        assert_eq!(2, rec.qdcount());
+        assert_eq!(
+            vec![
+                Question::new(vec!["www", "aaa"], Qtype::MD, Qclass::Wildcard),
+                Question::new(vec!["heise", "de"], Qtype::A, Qclass::IN)
+            ],
+            rec.questions().unwrap()
+        );
     }
 }
