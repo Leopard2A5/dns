@@ -156,6 +156,7 @@ impl DnsRecord {
 mod test {
     use super::*;
     use ::labels::encode_labels;
+    use ::utils::write_u16;
 
     #[test]
     fn should_read_id() {
@@ -335,12 +336,10 @@ mod test {
         let mut buffer = [0u8; 512];
         buffer[5] = 1; // 1 question
 
-        let labels = encode_labels(vec!["www", "google", "com"]);
-
-        let end = 12 + labels.len();
-        buffer[12..end].copy_from_slice(&labels);
-        buffer[end+1] = Qtype::A as u8;
-        buffer[end+3] = Qclass::IN as u8;
+        let mut pos = 12;
+        encode_labels(&mut buffer, &mut pos, vec!["www", "google", "com"]);
+        write_u16(&mut buffer, &mut pos, Qtype::A as u16);
+        write_u16(&mut buffer, &mut pos, Qclass::IN as u16);
 
         let expected = Question::new(
             vec!["www", "google", "com"],
@@ -357,18 +356,15 @@ mod test {
         let mut buffer = [0u8; 512];
         buffer[5] = 2; // 2 questions
 
-        let labels = encode_labels(vec!["www", "google", "com"]);
-        let end = 12 + labels.len();
-        buffer[12..end].copy_from_slice(&labels);
-        buffer[end+1] = Qtype::A as u8;
-        buffer[end+3] = Qclass::IN as u8;
+        let mut pos = 12;
+        encode_labels(&mut buffer, &mut pos, vec!["www", "google", "com"]);
+        write_u16(&mut buffer, &mut pos, Qtype::A as u16);
+        write_u16(&mut buffer, &mut pos, Qclass::IN as u16);
+        println!("{:?}", &buffer[12..pos+4]);
 
-        let labels = encode_labels(vec!["www", "heise", "de"]);
-        let start = end + 4;
-        let end = start + labels.len();
-        buffer[start..end].copy_from_slice(&labels);
-        buffer[end+1] = Qtype::NS as u8;
-        buffer[end+3] = Qclass::CS as u8;
+        encode_labels(&mut buffer, &mut pos, vec!["www", "heise", "de"]);
+        write_u16(&mut buffer, &mut pos, Qtype::NS as u16);
+        write_u16(&mut buffer, &mut pos, Qclass::CS as u16);
 
         let expected = vec![
             Question::new(
@@ -392,27 +388,21 @@ mod test {
         let mut buffer = [0u8; 512];
         buffer[5] = 1; // 1 question
 
-        let labels = encode_labels(vec!["aaa", "xxx"]);
-
-        let mut end = 12 + labels.len();
-        buffer[12..end].copy_from_slice(&labels);
+        let mut pos = 12;
+        encode_labels(&mut buffer, &mut pos, vec!["aaa", "xxx"]);
 
         // one more element, override 0 terminator
-        buffer[end-1] = 0xc0;
-        buffer[end] = 12; // jump to 12
+        buffer[pos-1] = 0xc0;
+        buffer[pos] = 12; // jump to 12
 
-        buffer[end+1] = 0xc0;
-        buffer[end+2] = 16; // jump to 16
+        buffer[pos+1] = 0xc0;
+        buffer[pos+2] = 16; // jump to 16
 
-        end += 3;
-        let labels = encode_labels(vec!["fff"]);
-        buffer[end..end+labels.len()].copy_from_slice(&labels);
-        end += labels.len();
+        pos += 3;
+        encode_labels(&mut buffer, &mut pos, vec!["fff"]);
 
-        buffer[end] = 0; // replace 0 terminator
-
-        buffer[end+1] = Qtype::A as u8;
-        buffer[end+3] = Qclass::IN as u8;
+        write_u16(&mut buffer, &mut pos, Qtype::A as u16);
+        write_u16(&mut buffer, &mut pos, Qclass::IN as u16);
 
         let expected = Question::new(
             vec!["aaa", "xxx", "aaa", "xxx", "fff"],

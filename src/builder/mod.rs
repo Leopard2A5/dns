@@ -2,6 +2,7 @@ use rand::{Rng, thread_rng};
 use ::enums::*;
 use ::Question;
 use ::labels::*;
+use ::utils::write_u16;
 
 #[derive(Debug)]
 pub struct DnsMessageBuilder<'a> {
@@ -84,7 +85,7 @@ impl<'a> DnsMessageBuilder<'a> {
 
         let mut buffer = [0u8; 512];
 
-        write_u16(&mut buffer, 0, self.id);
+        write_u16(&mut buffer, &mut 0, self.id);
 
         buffer[2] = (self.qr as u8) << 7;
         buffer[2] |= (self.opcode as u8) << 3;
@@ -96,35 +97,20 @@ impl<'a> DnsMessageBuilder<'a> {
         buffer[3] |= self.z << 4;
         buffer[3] |= (self.rcode as u8) & 0x0f;
 
-        write_u16(&mut buffer, 4, self.questions.len() as u16);
+        write_u16(&mut buffer, &mut 4, self.questions.len() as u16);
 
         let mut pos = 12;
         for question in self.questions {
             let labels = question.labels;
             let borrows: Vec<_> = labels.iter().map(|l| l.borrow()).collect();
-            let lbl_buffer = encode_labels(borrows);
+            encode_labels(&mut buffer, &mut pos, borrows);
 
-            buffer[pos..pos + lbl_buffer.len()].copy_from_slice(&lbl_buffer);
-            pos += lbl_buffer.len();
+            write_u16(&mut buffer, &mut pos, question.qtype as u16);
 
-            write_u16(&mut buffer, pos, question.qtype as u16);
-            pos += 2;
-
-            write_u16(&mut buffer, pos, question.qclass as u16);
-            pos += 2;
+            write_u16(&mut buffer, &mut pos, question.qclass as u16);
         }
 
         buffer
-    }
-}
-
-fn write_u16(target: &mut[u8], pos: usize, val: u16) {
-    assert!(pos < target.len() - 2, "array index out of bounds!");
-
-    let tmp = &target[pos] as *const u8;
-    let tmp = tmp as *mut u16;
-    unsafe {
-        *tmp = val.to_be();
     }
 }
 
@@ -302,5 +288,35 @@ mod test {
             ],
             rec.questions().unwrap()
         );
+    }
+
+    #[test]
+    fn should_build_with_label_refs() {
+        let buffer = DnsMessageBuilder::new()
+            .add_question(Question::new(
+                vec!["www"],
+                Qtype::MD,
+                Qclass::Wildcard
+            ))
+            .add_question(Question::new(
+                vec!["www", "aaa"],
+                Qtype::MD,
+                Qclass::Wildcard
+            ))
+            .add_question(Question::new(
+                vec!["xxx", "aaa", "bbb"],
+                Qtype::MD,
+                Qclass::Wildcard
+            ))
+            .build();
+
+        assert_eq!(&buffer[12..16], &[3, 119, 119, 119]);
+
+        assert_eq!(&buffer[20..22], &[0xc0, 12]);
+        assert_eq!(&buffer[22..26], &[3, 97, 97, 97]);
+
+        assert_eq!(&buffer[30..34], &[3, 120, 120, 120]);
+        assert_eq!(&buffer[38..40], &[0xc0, 22]);
+        assert_eq!(&buffer[44..48], &[3, 98, 98, 98]);
     }
 }

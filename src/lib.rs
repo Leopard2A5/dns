@@ -7,6 +7,7 @@ mod builder;
 mod enums;
 mod errors;
 mod labels;
+mod utils;
 
 pub use self::dns_record::{
     DnsRecord,

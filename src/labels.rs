@@ -1,28 +1,34 @@
 use std::borrow::Borrow;
 
-pub fn encode_label<T>(text: T) -> Vec<u8>
+pub fn encode_label<T>(
+    target: &mut [u8],
+    pos: &mut usize,
+    text: T
+)
 where T: Borrow<str>
 {
-    let mut ret = vec![];
-
     let bytes = text.borrow().as_bytes();
 
-    ret.push(bytes.len() as u8);
-    ret.extend(bytes.iter());
+    target[*pos] = bytes.len() as u8;
+    *pos += 1;
 
-    ret
+    target[*pos..*pos+bytes.len()].copy_from_slice(bytes);
+    *pos += bytes.len();
 }
 
-pub fn encode_labels<'a, T>(texts: T) -> Vec<u8>
+pub fn encode_labels<'a, T>(
+    target: &mut [u8],
+    pos: &mut usize,
+    texts: T
+)
 where T: IntoIterator,
       T::Item: Borrow<str>
 {
-    let mut ret = texts.into_iter()
-        .map(|txt| encode_label(txt.borrow()))
-        .fold(vec![], |mut a, t| { a.extend(t.iter()); a });
-
-    ret.push(0);
-    ret
+    for text in texts {
+        encode_label(target, pos, text);
+    }
+    target[*pos] = 0;
+    *pos += 1;
 }
 
 #[cfg(test)]
@@ -32,7 +38,8 @@ mod test {
     #[test]
     fn encode_label_should_prepend_byte_length() {
         for label in vec!["abcd", "aaö"] {
-            let buffer = encode_label(label);
+            let mut buffer = [0u8; 10];
+            encode_label(&mut buffer, &mut 0, label);
             assert_eq!(buffer[0], label.bytes().len() as u8);
         }
     }
@@ -40,10 +47,10 @@ mod test {
     #[test]
     fn encode_label_should_encode_string() {
         for label in vec!["abcd", "aaö"] {
-            let buffer = encode_label(label);
+            let mut buffer = [0u8; 10];
+            encode_label(&mut buffer, &mut 0, label);
             let bytes = label.as_bytes();
 
-            assert_eq!(buffer.len() - 1, bytes.len());
             for i in 0..bytes.len() {
                 assert_eq!(buffer[i+1], bytes[i]);
             }
@@ -52,7 +59,8 @@ mod test {
 
     #[test]
     fn encode_labels_should_add_null_terminator() {
-        let buffer = encode_labels(vec!["aaa"]);
+        let mut buffer = [0u8; 5];
+        encode_labels(&mut buffer, &mut 0, vec!["aaa"]);
         assert_eq!("aaa".as_bytes(), &buffer[1..4]);
         assert_eq!(0, buffer[4]);
     }
