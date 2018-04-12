@@ -157,6 +157,7 @@ mod test {
     use super::*;
     use ::labels::encode_labels;
     use ::utils::write_u16;
+    use std::collections::HashMap;
 
     #[test]
     fn should_read_id() {
@@ -337,7 +338,7 @@ mod test {
         buffer[5] = 1; // 1 question
 
         let mut pos = 12;
-        encode_labels(&mut buffer, &mut pos, vec!["www", "google", "com"]);
+        encode_labels(&mut buffer, &mut pos, &mut HashMap::new(), vec!["www", "google", "com"]);
         write_u16(&mut buffer, &mut pos, Qtype::A as u16);
         write_u16(&mut buffer, &mut pos, Qclass::IN as u16);
 
@@ -357,12 +358,12 @@ mod test {
         buffer[5] = 2; // 2 questions
 
         let mut pos = 12;
-        encode_labels(&mut buffer, &mut pos, vec!["www", "google", "com"]);
+        encode_labels(&mut buffer, &mut pos, &mut HashMap::new(), vec!["www", "google", "com"]);
         write_u16(&mut buffer, &mut pos, Qtype::A as u16);
         write_u16(&mut buffer, &mut pos, Qclass::IN as u16);
         println!("{:?}", &buffer[12..pos+4]);
 
-        encode_labels(&mut buffer, &mut pos, vec!["www", "heise", "de"]);
+        encode_labels(&mut buffer, &mut pos, &mut HashMap::new(), vec!["www", "heise", "de"]);
         write_u16(&mut buffer, &mut pos, Qtype::NS as u16);
         write_u16(&mut buffer, &mut pos, Qclass::CS as u16);
 
@@ -389,7 +390,7 @@ mod test {
         buffer[5] = 1; // 1 question
 
         let mut pos = 12;
-        encode_labels(&mut buffer, &mut pos, vec!["aaa", "xxx"]);
+        encode_labels(&mut buffer, &mut pos, &mut HashMap::new(), vec!["aaa", "xxx"]);
 
         // one more element, override 0 terminator
         buffer[pos-1] = 0xc0;
@@ -399,7 +400,7 @@ mod test {
         buffer[pos+2] = 16; // jump to 16
 
         pos += 3;
-        encode_labels(&mut buffer, &mut pos, vec!["fff"]);
+        encode_labels(&mut buffer, &mut pos, &mut HashMap::new(), vec!["fff"]);
 
         write_u16(&mut buffer, &mut pos, Qtype::A as u16);
         write_u16(&mut buffer, &mut pos, Qclass::IN as u16);

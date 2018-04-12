@@ -3,6 +3,7 @@ use ::enums::*;
 use ::Question;
 use ::labels::*;
 use ::utils::write_u16;
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct DnsMessageBuilder<'a> {
@@ -81,8 +82,6 @@ impl<'a> DnsMessageBuilder<'a> {
     }
 
     pub fn build(self) -> [u8; 512] {
-        use std::borrow::Borrow;
-
         let mut buffer = [0u8; 512];
 
         write_u16(&mut buffer, &mut 0, self.id);
@@ -100,10 +99,10 @@ impl<'a> DnsMessageBuilder<'a> {
         write_u16(&mut buffer, &mut 4, self.questions.len() as u16);
 
         let mut pos = 12;
+        let mut encoded_labels = HashMap::new();
         for question in self.questions {
             let labels = question.labels;
-            let borrows: Vec<_> = labels.iter().map(|l| l.borrow()).collect();
-            encode_labels(&mut buffer, &mut pos, borrows);
+            encode_labels(&mut buffer, &mut pos, &mut encoded_labels, labels);
 
             write_u16(&mut buffer, &mut pos, question.qtype as u16);
 
@@ -310,13 +309,13 @@ mod test {
             ))
             .build();
 
-        assert_eq!(&buffer[12..16], &[3, 119, 119, 119]);
+        assert_eq!(&buffer[12..17], &[3, 119, 119, 119, 0]);
 
-        assert_eq!(&buffer[20..22], &[0xc0, 12]);
-        assert_eq!(&buffer[22..26], &[3, 97, 97, 97]);
+        assert_eq!(&buffer[21..23], &[0xc0, 12]);
+        assert_eq!(&buffer[23..28], &[3, 97, 97, 97, 0]);
 
-        assert_eq!(&buffer[30..34], &[3, 120, 120, 120]);
-        assert_eq!(&buffer[38..40], &[0xc0, 22]);
-        assert_eq!(&buffer[44..48], &[3, 98, 98, 98]);
+        assert_eq!(&buffer[32..36], &[3, 120, 120, 120]);
+        assert_eq!(&buffer[36..38], &[0xc0, 23]);
+        assert_eq!(&buffer[38..42], &[3, 98, 98, 98]);
     }
 }
