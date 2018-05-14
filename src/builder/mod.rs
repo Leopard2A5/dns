@@ -116,7 +116,7 @@ impl<'a> DnsMessageBuilder<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use ::DnsRecord;
+    use ::Parser;
     use ::Question;
 
     #[test]
@@ -128,8 +128,8 @@ mod test {
 
         for _ in 0..num_tests {
             let buffer = DnsMessageBuilder::new().build();
-            let rec = DnsRecord::new(buffer);
-            ids.insert(rec.id());
+            let parser = Parser::new(buffer);
+            ids.insert(parser.id());
         }
 
         assert_eq!(num_tests, ids.len());
@@ -140,15 +140,15 @@ mod test {
         let buffer = DnsMessageBuilder::new()
             .with_id(5)
             .build();
-        let rec = DnsRecord::new(buffer);
-        assert_eq!(5, rec.id());
+        let parser = Parser::new(buffer);
+        assert_eq!(5, parser.id());
     }
 
     #[test]
     fn should_default_to_query() {
         let buffer = DnsMessageBuilder::new().build();
-        let rec = DnsRecord::new(buffer);
-        assert_eq!(QR::QUERY, rec.qr());
+        let parser = Parser::new(buffer);
+        assert_eq!(QR::QUERY, parser.qr());
     }
 
     #[test]
@@ -156,15 +156,15 @@ mod test {
         let buffer = DnsMessageBuilder::new()
             .with_qr(QR::RESPONSE)
             .build();
-        let rec = DnsRecord::new(buffer);
-        assert_eq!(QR::RESPONSE, rec.qr());
+        let parser = Parser::new(buffer);
+        assert_eq!(QR::RESPONSE, parser.qr());
     }
 
     #[test]
     fn should_default_to_query_opcode() {
         let buffer = DnsMessageBuilder::new().build();
-        let rec = DnsRecord::new(buffer);
-        assert_eq!(Ok(OPCODE::QUERY), rec.opcode());
+        let parser = Parser::new(buffer);
+        assert_eq!(Ok(OPCODE::QUERY), parser.opcode());
     }
 
     #[test]
@@ -172,16 +172,16 @@ mod test {
         let buffer = DnsMessageBuilder::new()
             .with_opcode(OPCODE::IQUERY)
             .build();
-        let rec = DnsRecord::new(buffer);
-        assert_eq!(QR::QUERY, rec.qr());
-        assert_eq!(Ok(OPCODE::IQUERY), rec.opcode());
+        let parser = Parser::new(buffer);
+        assert_eq!(QR::QUERY, parser.qr());
+        assert_eq!(Ok(OPCODE::IQUERY), parser.opcode());
     }
 
     #[test]
     fn should_default_to_non_authoritative_answer() {
         let buffer = DnsMessageBuilder::new().build();
-        let rec = DnsRecord::new(buffer);
-        assert_eq!(false, rec.aa());
+        let parser = Parser::new(buffer);
+        assert_eq!(false, parser.aa());
     }
 
     #[test]
@@ -189,54 +189,54 @@ mod test {
         let buffer = DnsMessageBuilder::new()
             .with_aa(true)
             .build();
-        let rec = DnsRecord::new(buffer);
-        assert!(rec.aa());
+        let parser = Parser::new(buffer);
+        assert!(parser.aa());
     }
 
     #[test]
     fn should_default_to_non_truncated_message() {
         let buffer = DnsMessageBuilder::new().build();
-        let rec = DnsRecord::new(buffer);
-        assert_eq!(false, rec.tc());
+        let parser = Parser::new(buffer);
+        assert_eq!(false, parser.tc());
     }
 
     #[test]
-    fn should_default_to_no_recursion_desired() {
+    fn should_default_to_no_parserursion_desired() {
         let buffer = DnsMessageBuilder::new().build();
-        let rec = DnsRecord::new(buffer);
-        assert_eq!(false, rec.rd());
+        let parser = Parser::new(buffer);
+        assert_eq!(false, parser.rd());
     }
 
     #[test]
-    fn should_allow_setting_recursion_desired() {
+    fn should_allow_setting_parserursion_desired() {
         let buffer = DnsMessageBuilder::new()
             .with_rd(true)
             .build();
-        let rec = DnsRecord::new(buffer);
-        assert!(rec.rd());
+        let parser = Parser::new(buffer);
+        assert!(parser.rd());
     }
 
     #[test]
-    fn should_default_to_no_recursion_available() {
+    fn should_default_to_no_parserursion_available() {
         let buffer = DnsMessageBuilder::new().build();
-        let rec = DnsRecord::new(buffer);
-        assert_eq!(false, rec.ra());
+        let parser = Parser::new(buffer);
+        assert_eq!(false, parser.ra());
     }
 
     #[test]
-    fn should_allow_setting_recursion_avaiable() {
+    fn should_allow_setting_parserursion_avaiable() {
         let buffer = DnsMessageBuilder::new()
             .with_ra(true)
             .build();
-        let rec = DnsRecord::new(buffer);
-        assert!(rec.ra());
+        let parser = Parser::new(buffer);
+        assert!(parser.ra());
     }
 
     #[test]
     fn should_default_to_zeroed_dnssec_bits() {
         let buffer = DnsMessageBuilder::new().build();
-        let rec = DnsRecord::new(buffer);
-        assert_eq!(0, rec.dnssec_bits() & 0b_0111_0000);
+        let parser = Parser::new(buffer);
+        assert_eq!(0, parser.dnssec_bits() & 0b_0111_0000);
     }
 
     #[test]
@@ -244,15 +244,15 @@ mod test {
         let buffer = DnsMessageBuilder::new()
             .with_dnssec_bits(0xff)
             .build();
-        let rec = DnsRecord::new(buffer);
-        assert_eq!(0b_0000_0111, rec.dnssec_bits());
+        let parser = Parser::new(buffer);
+        assert_eq!(0b_0000_0111, parser.dnssec_bits());
     }
 
     #[test]
     fn should_default_to_response_code_ok() {
         let buffer = DnsMessageBuilder::new().build();
-        let rec = DnsRecord::new(buffer);
-        assert_eq!(Ok(RCODE::Ok), rec.rcode());
+        let parser = Parser::new(buffer);
+        assert_eq!(Ok(RCODE::Ok), parser.rcode());
     }
 
     #[test]
@@ -260,8 +260,8 @@ mod test {
         let buffer = DnsMessageBuilder::new()
             .with_rcode(RCODE::NotImplemented)
             .build();
-        let rec = DnsRecord::new(buffer);
-        assert_eq!(Ok(RCODE::NotImplemented), rec.rcode());
+        let parser = Parser::new(buffer);
+        assert_eq!(Ok(RCODE::NotImplemented), parser.rcode());
     }
 
     #[test]
@@ -278,14 +278,14 @@ mod test {
                 Qclass::IN
             ))
             .build();
-        let rec = DnsRecord::new(buffer);
-        assert_eq!(2, rec.qdcount());
+        let parser = Parser::new(buffer);
+        assert_eq!(2, parser.qdcount());
         assert_eq!(
             vec![
                 Question::new(vec!["www", "aaa"], Qtype::MD, Qclass::Wildcard),
                 Question::new(vec!["heise", "de"], Qtype::A, Qclass::IN)
             ],
-            rec.questions().unwrap()
+            parser.questions().unwrap()
         );
     }
 

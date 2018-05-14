@@ -10,8 +10,9 @@ mod labels;
 mod utils;
 
 pub use self::dns_record::{
-    DnsRecord,
-    Question
+    Parser,
+    Question,
+    ARecord
 };
 
 pub use self::enums::*;

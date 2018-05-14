@@ -12,10 +12,10 @@ fn check_header() {
         file.read(&mut buffer).unwrap();
     }
 
-    let rec = DnsRecord::new(buffer);
-    assert!(rec.id() > 0);
-    assert_eq!(QR::QUERY, rec.qr());
-    assert_eq!(Ok(OPCODE::QUERY), rec.opcode());
-    assert!(rec.rd());
-    assert_eq!(1, rec.qdcount());
+    let parser = Parser::new(buffer);
+    assert!(parser.id() > 0);
+    assert_eq!(QR::QUERY, parser.qr());
+    assert_eq!(Ok(OPCODE::QUERY), parser.opcode());
+    assert!(parser.rd());
+    assert_eq!(1, parser.qdcount());
 }
