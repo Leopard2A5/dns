@@ -116,7 +116,7 @@ impl<'a> DnsMessageBuilder<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use ::Parser;
+    use ::parse;
     use ::Question;
 
     #[test]
@@ -128,8 +128,8 @@ mod test {
 
         for _ in 0..num_tests {
             let buffer = DnsMessageBuilder::new().build();
-            let parser = Parser::new(buffer);
-            ids.insert(parser.id());
+            let result = parse(&buffer).unwrap();
+            ids.insert(result.id());
         }
 
         assert_eq!(num_tests, ids.len());
@@ -140,15 +140,15 @@ mod test {
         let buffer = DnsMessageBuilder::new()
             .with_id(5)
             .build();
-        let parser = Parser::new(buffer);
-        assert_eq!(5, parser.id());
+        let result = parse(&buffer).unwrap();
+        assert_eq!(5, result.id());
     }
 
     #[test]
     fn should_default_to_query() {
         let buffer = DnsMessageBuilder::new().build();
-        let parser = Parser::new(buffer);
-        assert_eq!(QR::QUERY, parser.qr());
+        let result = parse(&buffer).unwrap();
+        assert_eq!(QR::QUERY, result.qr());
     }
 
     #[test]
@@ -156,15 +156,15 @@ mod test {
         let buffer = DnsMessageBuilder::new()
             .with_qr(QR::RESPONSE)
             .build();
-        let parser = Parser::new(buffer);
-        assert_eq!(QR::RESPONSE, parser.qr());
+        let result = parse(&buffer).unwrap();
+        assert_eq!(QR::RESPONSE, result.qr());
     }
 
     #[test]
     fn should_default_to_query_opcode() {
         let buffer = DnsMessageBuilder::new().build();
-        let parser = Parser::new(buffer);
-        assert_eq!(Ok(OPCODE::QUERY), parser.opcode());
+        let result = parse(&buffer).unwrap();
+        assert_eq!(OPCODE::QUERY, result.opcode());
     }
 
     #[test]
@@ -172,16 +172,16 @@ mod test {
         let buffer = DnsMessageBuilder::new()
             .with_opcode(OPCODE::IQUERY)
             .build();
-        let parser = Parser::new(buffer);
-        assert_eq!(QR::QUERY, parser.qr());
-        assert_eq!(Ok(OPCODE::IQUERY), parser.opcode());
+        let result = parse(&buffer).unwrap();
+        assert_eq!(QR::QUERY, result.qr());
+        assert_eq!(OPCODE::IQUERY, result.opcode());
     }
 
     #[test]
     fn should_default_to_non_authoritative_answer() {
         let buffer = DnsMessageBuilder::new().build();
-        let parser = Parser::new(buffer);
-        assert_eq!(false, parser.aa());
+        let result = parse(&buffer).unwrap();
+        assert_eq!(false, result.aa());
     }
 
     #[test]
@@ -189,54 +189,54 @@ mod test {
         let buffer = DnsMessageBuilder::new()
             .with_aa(true)
             .build();
-        let parser = Parser::new(buffer);
-        assert!(parser.aa());
+        let result = parse(&buffer).unwrap();
+        assert!(result.aa());
     }
 
     #[test]
     fn should_default_to_non_truncated_message() {
         let buffer = DnsMessageBuilder::new().build();
-        let parser = Parser::new(buffer);
-        assert_eq!(false, parser.tc());
+        let result = parse(&buffer).unwrap();
+        assert_eq!(false, result.tc());
     }
 
     #[test]
-    fn should_default_to_no_parserursion_desired() {
+    fn should_default_to_no_resultursion_desired() {
         let buffer = DnsMessageBuilder::new().build();
-        let parser = Parser::new(buffer);
-        assert_eq!(false, parser.rd());
+        let result = parse(&buffer).unwrap();
+        assert_eq!(false, result.rd());
     }
 
     #[test]
-    fn should_allow_setting_parserursion_desired() {
+    fn should_allow_setting_resultursion_desired() {
         let buffer = DnsMessageBuilder::new()
             .with_rd(true)
             .build();
-        let parser = Parser::new(buffer);
-        assert!(parser.rd());
+        let result = parse(&buffer).unwrap();
+        assert!(result.rd());
     }
 
     #[test]
-    fn should_default_to_no_parserursion_available() {
+    fn should_default_to_no_resultursion_available() {
         let buffer = DnsMessageBuilder::new().build();
-        let parser = Parser::new(buffer);
-        assert_eq!(false, parser.ra());
+        let result = parse(&buffer).unwrap();
+        assert_eq!(false, result.ra());
     }
 
     #[test]
-    fn should_allow_setting_parserursion_avaiable() {
+    fn should_allow_setting_resultursion_avaiable() {
         let buffer = DnsMessageBuilder::new()
             .with_ra(true)
             .build();
-        let parser = Parser::new(buffer);
-        assert!(parser.ra());
+        let result = parse(&buffer).unwrap();
+        assert!(result.ra());
     }
 
     #[test]
     fn should_default_to_zeroed_dnssec_bits() {
         let buffer = DnsMessageBuilder::new().build();
-        let parser = Parser::new(buffer);
-        assert_eq!(0, parser.dnssec_bits() & 0b_0111_0000);
+        let result = parse(&buffer).unwrap();
+        assert_eq!(0, result.dnssec() & 0b_0111_0000);
     }
 
     #[test]
@@ -244,15 +244,15 @@ mod test {
         let buffer = DnsMessageBuilder::new()
             .with_dnssec_bits(0xff)
             .build();
-        let parser = Parser::new(buffer);
-        assert_eq!(0b_0000_0111, parser.dnssec_bits());
+        let result = parse(&buffer).unwrap();
+        assert_eq!(0b_0000_0111, result.dnssec());
     }
 
     #[test]
     fn should_default_to_response_code_ok() {
         let buffer = DnsMessageBuilder::new().build();
-        let parser = Parser::new(buffer);
-        assert_eq!(Ok(RCODE::Ok), parser.rcode());
+        let result = parse(&buffer).unwrap();
+        assert_eq!(RCODE::Ok, result.rcode());
     }
 
     #[test]
@@ -260,8 +260,8 @@ mod test {
         let buffer = DnsMessageBuilder::new()
             .with_rcode(RCODE::NotImplemented)
             .build();
-        let parser = Parser::new(buffer);
-        assert_eq!(Ok(RCODE::NotImplemented), parser.rcode());
+        let result = parse(&buffer).unwrap();
+        assert_eq!(RCODE::NotImplemented, result.rcode());
     }
 
     #[test]
@@ -278,14 +278,13 @@ mod test {
                 Qclass::IN
             ))
             .build();
-        let parser = Parser::new(buffer);
-        assert_eq!(2, parser.qdcount());
+        let result = parse(&buffer).unwrap();
         assert_eq!(
             vec![
                 Question::new(vec!["www", "aaa"], Qtype::MD, Qclass::Wildcard),
                 Question::new(vec!["heise", "de"], Qtype::A, Qclass::IN)
             ],
-            parser.questions().unwrap()
+            result.questions()
         );
     }
 

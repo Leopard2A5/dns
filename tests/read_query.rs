@@ -12,10 +12,10 @@ fn check_header() {
         file.read(&mut buffer).unwrap();
     }
 
-    let parser = Parser::new(buffer);
-    assert!(parser.id() > 0);
-    assert_eq!(QR::QUERY, parser.qr());
-    assert_eq!(Ok(OPCODE::QUERY), parser.opcode());
-    assert!(parser.rd());
-    assert_eq!(1, parser.qdcount());
+    let result = parse(&buffer).unwrap();
+    assert!(result.id() > 0);
+    assert_eq!(QR::QUERY, result.qr());
+    assert_eq!(OPCODE::QUERY, result.opcode());
+    assert!(result.rd());
+    assert_eq!(1, result.questions().len());
 }

@@ -1,8 +1,6 @@
 mod question;
-mod record_preamble;
-mod arecord;
 mod parser;
+mod dns_record;
 
-pub use self::parser::Parser;
+pub use self::parser::parse;
 pub use self::question::Question;
-pub use self::arecord::ARecord;
