@@ -202,7 +202,11 @@ fn parse_answer<'a>(
         .ok_or(Error::new(DnsMsgError::InvalidData, format!("Invalid class: {}", class)))?;
     let ttl = read_u32(data, pos);
     let len = read_u16(data, pos);
-    assert_eq!(len, 4);
+
+    if typ == Type::A && len != 4 {
+        return Err(Error::new(DnsMsgError::InvalidData, format!("Length of {} is invalid for type A", len)));
+    }
+
     let ip = Ipv4Addr::from(read_u32(data, pos));
 
     Ok(ARecord::new(labels, class, ttl, ip))
@@ -509,5 +513,34 @@ mod test {
         );
 
         assert_eq!(vec![expectation], result.answers());
+    }
+
+    #[test]
+    fn should_fail_on_invalid_arecord_data() {
+        let mut buffer = [0u8; 128];
+        write_u16(&mut buffer, &mut 6, 1);
+
+        let mut pos = 12;
+        encode_labels(&mut buffer, &mut pos, &mut HashMap::new(), vec!["google", "com"]);
+
+        {
+            write_u16(&mut buffer, &mut pos, 18);
+            assert_eq!(Err(Error::new(DnsMsgError::InvalidData, "Invalid type: 18")), parse(&buffer));
+        }
+
+        {
+            pos -= 2;
+            write_u16(&mut buffer, &mut pos, Type::A as u16);
+            write_u16(&mut buffer, &mut pos, 5);
+            assert_eq!(Err(Error::new(DnsMsgError::InvalidData, "Invalid class: 5")), parse(&buffer));
+        }
+
+        {
+            pos -= 2;
+            write_u16(&mut buffer, &mut pos, Class::IN as u16);
+            write_u32(&mut buffer, &mut pos, 32); // TTL
+            write_u16(&mut buffer, &mut pos, 5); // len
+            assert_eq!(Err(Error::new(DnsMsgError::InvalidData, "Length of 5 is invalid for type A")), parse(&buffer));
+        }
     }
 }
