@@ -3,9 +3,13 @@ use ::errors::*;
 use ::Question;
 use std::collections::VecDeque;
 use ::dns_record::dns_record::DnsRecord;
+use ::dns_record::arecord::ARecord;
 use num::FromPrimitive;
+use std::net::Ipv4Addr;
 
-pub fn parse<'a, 'b>(data: &'a [u8]) -> Result<'b, DnsRecord<'a>> {
+pub fn parse<'a>(data: &'a [u8]) -> Result<'a, DnsRecord<'a>> {
+    let mut pos = 12;
+
     Ok(DnsRecord::new(
         id(data),
         qr(data),
@@ -16,22 +20,41 @@ pub fn parse<'a, 'b>(data: &'a [u8]) -> Result<'b, DnsRecord<'a>> {
         ra(data),
         dnssec_bits(data),
         rcode(data)?,
-        questions(data)?
+        questions(data, &mut pos)?,
+        answers(data, &mut pos)?
     ))
 }
 
-fn read_u16<'a>(data: &'a [u8], index: usize) -> u16 {
-    assert!(index <= data.len() - 2, "array index out of bounds!");
+fn read_u16<'a>(
+    data: &'a [u8],
+    index: &mut usize
+) -> u16 {
+    assert!(*index <= data.len() - 2, "array index out of bounds!");
 
-    let tmp = &data[index] as *const u8;
+    let tmp = &data[*index] as *const u8;
     let tmp = tmp as *const u16;
+    *index += 2;
     unsafe {
         u16::from_be(*tmp)
     }
 }
 
+fn read_u32<'a>(
+    data: &'a [u8],
+    index: &mut usize
+) -> u32 {
+    assert!(*index <= data.len() - 4, "array index out of bounds!");
+
+    let tmp = &data[*index] as *const u8;
+    let tmp = tmp as *const u32;
+    *index += 4;
+    unsafe {
+        u32::from_be(*tmp)
+    }
+}
+
 fn id<'a>(data: &'a [u8]) -> u16 {
-    read_u16(data, 0)
+    read_u16(data, &mut 0)
 }
 
 fn qr<'a>(data: &'a [u8]) -> QR {
@@ -72,26 +95,26 @@ fn rcode<'a, 'b>(data: &'a [u8]) -> Result<'b, RCODE> {
 }
 
 fn qdcount<'a>(data: &'a [u8]) -> u16 {
-    read_u16(data, 4)
+    read_u16(data, &mut 4)
 }
 
 fn ancount<'a>(data: &'a [u8]) -> u16 {
-    read_u16(data, 6)
+    read_u16(data, &mut 6)
 }
 
 fn nscount<'a>(data: &'a [u8]) -> u16 {
-    read_u16(data, 8)
+    read_u16(data, &mut 8)
 }
 
 fn arcount<'a>(data: &'a [u8]) -> u16 {
-    read_u16(data, 10)
+    read_u16(data, &mut 10)
 }
 
-fn parse_label<'a, 'b>(
+fn parse_label<'a>(
     data: &'a [u8],
     pos: &mut usize,
     visited_positions: &mut VecDeque<usize>
-) -> Result<'b, Option<&'a str>> {
+) -> Result<'a, Option<&'a str>> {
     use std::str;
 
     visited_positions.push_back(*pos);
@@ -104,13 +127,13 @@ fn parse_label<'a, 'b>(
     }
 
     if len & 0xc0 == 0xc0 {
-        let mut jump = (read_u16(data, *pos - 1) ^ 0xc000) as usize;
+        *pos -= 1;
+        let mut jump = (read_u16(data, pos) ^ 0xc000) as usize;
 
         if visited_positions.contains(&jump) {
             return Err(Error::new(DnsMsgError::CyclicLabelRef, "Encountered cyclic label reference"));
         }
 
-        *pos += 1; // advance pos beyond jump addr
         return parse_label(data, &mut jump, visited_positions);
     }
 
@@ -120,10 +143,10 @@ fn parse_label<'a, 'b>(
     Ok(Some(ret))
 }
 
-fn parse_labels<'a, 'b>(
+fn parse_labels<'a>(
     data: &'a [u8],
     pos: &mut usize
-) -> Result<'b, Vec<&'a str>> {
+) -> Result<'a, Vec<&'a str>> {
     let mut labels = vec![];
     loop {
         let mut visited_positions = VecDeque::new();
@@ -138,39 +161,71 @@ fn parse_labels<'a, 'b>(
     Ok(labels)
 }
 
-fn parse_question<'a, 'b>(
+fn parse_question<'a>(
     data: &'a [u8],
     pos: &mut usize
-) -> Result<'b, Question<'a>> {
+) -> Result<'a, Question<'a>> {
     let labels = parse_labels(data, pos)?;
 
-    let qtype = read_u16(data, *pos);
+    let qtype = read_u16(data, pos);
     let qtype = Qtype::from_u16(qtype).unwrap();
 
-    *pos += 2;
-    let qclass = read_u16(data, *pos);
+    let qclass = read_u16(data, pos);
     let qclass = Qclass::from_u16(qclass).unwrap();
 
-    *pos += 2;
     Ok(Question::new(labels, qtype, qclass))
 }
 
-fn questions<'a, 'b>(data: &'a [u8]) -> Result<'b, Vec<Question<'a>>> {
-    let mut pos = 12;
+fn  questions<'a>(
+    data: &'a [u8],
+    pos: &mut usize
+) -> Result<'a, Vec<Question<'a>>> {
     let mut questions = vec![];
 
     for _ in 0..qdcount(data) {
-        questions.push(parse_question(data, &mut pos)?);
+        questions.push(parse_question(data, pos)?);
     }
 
     Ok(questions)
+}
+
+fn parse_answer<'a>(
+    data: &'a [u8],
+    pos: &mut usize
+) -> Result<'a, ARecord<'a>> {
+    let labels = parse_labels(data, pos)?;
+    let typ = read_u16(data, pos);
+    let typ = Type::from_u16(typ)
+        .ok_or(Error::new(DnsMsgError::InvalidData, format!("Invalid type: {}", typ)))?;
+    let class = read_u16(data, pos);
+    let class = Class::from_u16(class)
+        .ok_or(Error::new(DnsMsgError::InvalidData, format!("Invalid class: {}", class)))?;
+    let ttl = read_u32(data, pos);
+    let len = read_u16(data, pos);
+    assert_eq!(len, 4);
+    let ip = Ipv4Addr::from(read_u32(data, pos));
+
+    Ok(ARecord::new(labels, class, ttl, ip))
+}
+
+fn answers<'a>(
+    data: &'a [u8],
+    pos: &mut usize
+) -> Result<'a, Vec<ARecord<'a>>> {
+    let mut answers = vec![];
+
+    for _ in 0..ancount(data) {
+        answers.push(parse_answer(data, pos)?);
+    }
+
+    Ok(answers)
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
     use ::labels::encode_labels;
-    use ::utils::write_u16;
+    use ::utils::{write_u16, write_u32};
     use std::collections::HashMap;
 
     #[test]
@@ -431,28 +486,28 @@ mod test {
         assert_eq!(expected, result);
     }
 
-//    #[test]
-//    fn should_read_arecord_answers() {
-//        let mut buffer = [0u8; 512];
-//        write_u16(&mut buffer, &mut 6, 1);
-//
-//        let mut pos = 12;
-//        encode_labels(&mut buffer, &mut pos, &mut HashMap::new(), vec!["google", "com"]);
-//        write_u16(&mut buffer, &mut pos, Type::A as u16);
-//        write_u16(&mut buffer, &mut pos, Class::IN as u16);
-//        write_u32(&mut buffer, &mut pos, 32); // TTL
-//        write_u16(&mut buffer, &mut pos, 4); // len
-//
-//        buffer[pos..pos+4].copy_from_slice(&[8, 16, 32, 64]); // IP
-//
-//        let result = parse(&buffer).unwrap();
-//        let expectation = ARecord::new(
-//            vec!["google", "com"],
-//            Class::IN,
-//            32,
-//            [8, 16, 32, 64]
-//        );
-//
-//        assert_eq!(Ok(vec![expectation]), result.answers());
-//    }
+    #[test]
+    fn should_read_arecord_answers() {
+        let mut buffer = [0u8; 512];
+        write_u16(&mut buffer, &mut 6, 1);
+
+        let mut pos = 12;
+        encode_labels(&mut buffer, &mut pos, &mut HashMap::new(), vec!["google", "com"]);
+        write_u16(&mut buffer, &mut pos, Type::A as u16);
+        write_u16(&mut buffer, &mut pos, Class::IN as u16);
+        write_u32(&mut buffer, &mut pos, 32); // TTL
+        write_u16(&mut buffer, &mut pos, 4); // len
+
+        buffer[pos..pos+4].copy_from_slice(&[8, 16, 32, 64]); // IP
+
+        let result = parse(&buffer).unwrap();
+        let expectation = ARecord::new(
+            vec!["google", "com"],
+            Class::IN,
+            32,
+            [8, 16, 32, 64]
+        );
+
+        assert_eq!(vec![expectation], result.answers());
+    }
 }
