@@ -12,6 +12,7 @@ mod utils;
 pub use self::dns_record::{
     parse,
     Question,
+    ARecord
 };
 
 pub use self::enums::*;
