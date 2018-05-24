@@ -1,11 +1,12 @@
 use ::enums::*;
 use ::errors::*;
 use ::Question;
-use std::collections::VecDeque;
+use std::collections::HashSet;
 use ::dns_record::dns_record::DnsRecord;
 use ::dns_record::arecord::ARecord;
 use num::FromPrimitive;
 use std::net::Ipv4Addr;
+use std::str;
 
 pub fn parse<'a>(data: &'a [u8]) -> Result<'a, DnsRecord<'a>> {
     let mut pos = 12;
@@ -23,6 +24,15 @@ pub fn parse<'a>(data: &'a [u8]) -> Result<'a, DnsRecord<'a>> {
         questions(data, &mut pos)?,
         answers(data, &mut pos)?
     ))
+}
+
+fn read_u8<'a>(
+    data: &'a [u8],
+    index: &mut usize
+) -> u8 {
+    assert!(*index <= data.len() - 1, "array index out of bounds!");
+    *index += 1;
+    data[*index - 1]
 }
 
 fn read_u16<'a>(
@@ -110,51 +120,32 @@ fn arcount<'a>(data: &'a [u8]) -> u16 {
     read_u16(data, &mut 10)
 }
 
-fn parse_label<'a>(
-    data: &'a [u8],
-    pos: &mut usize,
-    visited_positions: &mut VecDeque<usize>
-) -> Result<'a, Option<&'a str>> {
-    use std::str;
-
-    visited_positions.push_back(*pos);
-
-    let len = data[*pos] as usize;
-    *pos += 1;
-
-    if len == 0 {
-        return Ok(None);
-    }
-
-    if len & 0xc0 == 0xc0 {
-        *pos -= 1;
-        let mut jump = (read_u16(data, pos) ^ 0xc000) as usize;
-
-        if visited_positions.contains(&jump) {
-            return Err(Error::new(DnsMsgError::CyclicLabelRef, "Encountered cyclic label reference"));
-        }
-
-        return parse_label(data, &mut jump, visited_positions);
-    }
-
-    let ret = str::from_utf8(&data[*pos..*pos+len]).unwrap();
-    *pos += len;
-
-    Ok(Some(ret))
-}
-
 fn parse_labels<'a>(
     data: &'a [u8],
-    pos: &mut usize
+    pos: &mut usize,
+    prior_jumps: &mut HashSet<usize>
 ) -> Result<'a, Vec<&'a str>> {
+    if data[*pos] & 0xc0 == 0xc0 {
+        let mut jump = (read_u16(data, pos) ^ 0xc000) as usize;
+        if prior_jumps.contains(&jump) {
+            return Err(Error::new(
+                DnsMsgError::CyclicLabelRef,
+                format!("Encountered cyclic label reference at index {}", *pos)
+            ));
+        }
+        prior_jumps.insert(jump);
+        return parse_labels(data, &mut jump, prior_jumps);
+    }
+
     let mut labels = vec![];
     loop {
-        let mut visited_positions = VecDeque::new();
-
-        if let Some(lbl) = parse_label(data, pos, &mut visited_positions)? {
-            labels.push(lbl);
-        } else {
+        let len = read_u8(data, pos) as usize;
+        if len == 0 {
             break;
+        } else {
+            let lbl = str::from_utf8(&data[*pos..*pos+len]).unwrap();
+            *pos += len;
+            labels.push(lbl);
         }
     }
 
@@ -165,7 +156,7 @@ fn parse_question<'a>(
     data: &'a [u8],
     pos: &mut usize
 ) -> Result<'a, Question<'a>> {
-    let labels = parse_labels(data, pos)?;
+    let labels = parse_labels(data, pos, &mut HashSet::new())?;
 
     let qtype = read_u16(data, pos);
     let qtype = Qtype::from_u16(qtype).unwrap();
@@ -193,7 +184,7 @@ fn parse_answer<'a>(
     data: &'a [u8],
     pos: &mut usize
 ) -> Result<'a, ARecord<'a>> {
-    let labels = parse_labels(data, pos)?;
+    let labels = parse_labels(data, pos, &mut HashSet::new())?;
     let typ = read_u16(data, pos);
     let typ = Type::from_u16(typ)
         .ok_or(Error::new(DnsMsgError::InvalidData, format!("Invalid type: {}", typ)))?;
@@ -442,51 +433,55 @@ mod test {
 
     #[test]
     fn should_read_questions_with_label_refs() {
-        let mut buffer = [0u8; 512];
-        buffer[5] = 1; // 1 question
+        let mut buffer = [0u8; 64];
+        buffer[5] = 2; // 2 questions
 
         let mut pos = 12;
-        encode_labels(&mut buffer, &mut pos, &mut HashMap::new(), vec!["aaa", "xxx"]);
-
-        // one more element, override 0 terminator
-        buffer[pos-1] = 0xc0;
-        buffer[pos] = 12; // jump to 12
-
-        buffer[pos+1] = 0xc0;
-        buffer[pos+2] = 16; // jump to 16
-
-        pos += 3;
-        encode_labels(&mut buffer, &mut pos, &mut HashMap::new(), vec!["fff"]);
+        encode_labels(&mut buffer, &mut pos, &mut HashMap::new(), vec!["google", "com"]);
 
         write_u16(&mut buffer, &mut pos, Qtype::A as u16);
         write_u16(&mut buffer, &mut pos, Qclass::IN as u16);
 
-        let expected = Question::new(
-            vec!["aaa", "xxx", "aaa", "xxx", "fff"],
-            Qtype::A,
-            Qclass::IN
-        );
+        write_u16(&mut buffer, &mut pos, 0xc000 | 12); // ref 12
+        write_u16(&mut buffer, &mut pos, Qtype::NS as u16);
+        write_u16(&mut buffer, &mut pos, Qclass::CH as u16);
+
+        let expected = vec![
+            Question::new(
+                vec!["google", "com"],
+                Qtype::A,
+                Qclass::IN
+            ),
+            Question::new(
+                vec!["google", "com"],
+                Qtype::NS,
+                Qclass::CH
+            )
+        ];
 
         let result = parse(&buffer).unwrap();
-        assert_eq!(&[expected], result.questions());
+        assert_eq!(expected, result.questions());
     }
 
     #[test]
     fn should_recognize_cyclic_label_refs() {
         let mut buffer = [0u8; 512];
-        buffer[5] = 1; // 1 question
+        buffer[5] = 2; // 2 questions
 
         buffer[12] = 0xc0;
-        buffer[13] = 14;
-        buffer[14] = 0xc0;
-        buffer[15] = 12;
-        buffer[16] = 0; // 0 terminator
+        let mut pos = 14;
+        write_u16(&mut buffer, &mut pos, Qtype::A as u16);
+        write_u16(&mut buffer, &mut pos, Qclass::IN as u16);
 
-        buffer[18] = Qtype::A as u8;
-        buffer[20] = Qclass::IN as u8;
+        buffer[13] = pos as u8;
+        buffer[pos] = 0xc0;
+        buffer[pos + 1] = 12;
+        pos += 2;
+        write_u16(&mut buffer, &mut pos, Qtype::A as u16);
+        write_u16(&mut buffer, &mut pos, Qclass::IN as u16);
 
         let result = parse(&buffer);
-        let expected = Err(Error::new(DnsMsgError::CyclicLabelRef, "Encountered cyclic label reference"));
+        let expected = Err(Error::new(DnsMsgError::CyclicLabelRef, "Encountered cyclic label reference at index 14"));
         assert_eq!(expected, result);
     }
 
