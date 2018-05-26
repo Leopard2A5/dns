@@ -1,6 +1,6 @@
 use ::enums::*;
 use ::Question;
-use ::dns_record::ARecord;
+use ::dns_record::records::Record;
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct DnsRecord<'a> {
@@ -14,7 +14,7 @@ pub struct DnsRecord<'a> {
     dnssec: u8,
     rcode: RCODE,
     questions: Vec<Question<'a>>,
-    answers: Vec<ARecord<'a>>,
+    answers: Vec<Record<'a>>,
 }
 
 impl<'a> DnsRecord<'a> {
@@ -29,7 +29,7 @@ impl<'a> DnsRecord<'a> {
         dnssec: u8,
         rcode: RCODE,
         questions: Vec<Question<'a>>,
-        answers: Vec<ARecord<'a>>,
+        answers: Vec<Record<'a>>,
     ) -> Self {
         DnsRecord {
             id,
@@ -86,7 +86,7 @@ impl<'a> DnsRecord<'a> {
         &self.questions
     }
 
-    pub fn answers(&self) -> &[ARecord<'a>] {
+    pub fn answers(&self) -> &[Record<'a>] {
         &self.answers
     }
 }

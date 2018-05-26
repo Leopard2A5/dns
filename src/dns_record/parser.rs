@@ -3,7 +3,8 @@ use ::errors::*;
 use ::Question;
 use std::collections::HashSet;
 use ::dns_record::dns_record::DnsRecord;
-use ::dns_record::arecord::ARecord;
+use ::dns_record::records::Record;
+use ::dns_record::records::RecordPayload;
 use num::FromPrimitive;
 use std::net::Ipv4Addr;
 use std::str;
@@ -183,7 +184,7 @@ fn  questions<'a>(
 fn parse_answer<'a>(
     data: &'a [u8],
     pos: &mut usize
-) -> Result<'a, ARecord<'a>> {
+) -> Result<'a, Record<'a>> {
     let labels = parse_labels(data, pos, &mut HashSet::new())?;
     let typ = read_u16(data, pos);
     let typ = Type::from_u16(typ)
@@ -194,19 +195,23 @@ fn parse_answer<'a>(
     let ttl = read_u32(data, pos);
     let len = read_u16(data, pos);
 
+    if typ != Type::A {
+        panic!("Record type not supported: {:?}", typ);
+    }
+
     if typ == Type::A && len != 4 {
         return Err(Error::new(DnsMsgError::InvalidData, format!("Length of {} is invalid for type A", len)));
     }
 
     let ip = Ipv4Addr::from(read_u32(data, pos));
 
-    Ok(ARecord::new(labels, class, ttl, ip))
+    Ok(Record::new(labels, class, ttl, RecordPayload::A(ip)))
 }
 
 fn answers<'a>(
     data: &'a [u8],
     pos: &mut usize
-) -> Result<'a, Vec<ARecord<'a>>> {
+) -> Result<'a, Vec<Record<'a>>> {
     let mut answers = vec![];
 
     for _ in 0..ancount(data) {
@@ -500,11 +505,11 @@ mod test {
         buffer[pos..pos+4].copy_from_slice(&[8, 16, 32, 64]); // IP
 
         let result = parse(&buffer).unwrap();
-        let expectation = ARecord::new(
+        let expectation = Record::new(
             vec!["google", "com"],
             Class::IN,
             32,
-            [8, 16, 32, 64]
+            RecordPayload::A(Ipv4Addr::new(8, 16, 32, 64))
         );
 
         assert_eq!(vec![expectation], result.answers());
