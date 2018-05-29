@@ -1,13 +1,13 @@
 use std::result;
 use std::borrow::Cow;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Serialize)]
 pub enum DnsMsgError {
     InvalidData,
     CyclicLabelRef
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Serialize)]
 pub struct Error<'a> {
     pub kind: DnsMsgError,
     pub msg:Cow<'a, str>

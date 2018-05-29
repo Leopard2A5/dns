@@ -2,7 +2,7 @@ use ::enums::*;
 use ::ParsedQuestion;
 use ::dns_record::records::Record;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Serialize)]
 pub struct DnsRecord<'a> {
     id: u16,
     qr: QR,

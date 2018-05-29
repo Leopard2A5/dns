@@ -1,7 +1,7 @@
 use ::enums::{Qtype, Qclass};
 use std::borrow::Cow;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Question<'a> {
     pub labels: Vec<Cow<'a, str>>,
     pub qtype: Qtype,

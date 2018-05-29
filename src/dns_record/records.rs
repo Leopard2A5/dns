@@ -2,7 +2,7 @@ use std::net::Ipv4Addr;
 use std::borrow::Cow;
 use ::enums::Class;
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Serialize)]
 pub struct Record<'a> {
     pub labels: Vec<Cow<'a, str>>,
     pub class: Class,
@@ -27,7 +27,7 @@ impl<'a> Record<'a> {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Serialize)]
 pub enum RecordPayload {
     A(Ipv4Addr),
 }

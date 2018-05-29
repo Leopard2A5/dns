@@ -28,7 +28,7 @@ impl<'a> DnsMessageBuilder<'a> {
             qr: QR::QUERY,
             opcode: OPCODE::QUERY,
             aa: false,
-            rd: false,
+            rd: true,
             ra: false,
             z: 0,
             rcode: RCODE::Ok,

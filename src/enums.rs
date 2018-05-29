@@ -1,5 +1,5 @@
 enum_from_primitive! {
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
     pub enum QR {
         QUERY    = 0,
         RESPONSE = 1
@@ -7,7 +7,7 @@ enum_from_primitive! {
 }
 
 enum_from_primitive! {
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
     pub enum OPCODE {
         QUERY  = 0,
         IQUERY = 1,
@@ -16,7 +16,7 @@ enum_from_primitive! {
 }
 
 enum_from_primitive! {
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
     pub enum RCODE {
         Ok              = 0,
         FormatError     = 1,
@@ -28,7 +28,7 @@ enum_from_primitive! {
 }
 
 enum_from_primitive! {
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
     pub enum Type {
         A        =   1,
         NS       =   2,
@@ -50,7 +50,7 @@ enum_from_primitive! {
 }
 
 enum_from_primitive! {
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
     pub enum Qtype {
         A        =   1,
         NS       =   2,
@@ -76,7 +76,7 @@ enum_from_primitive! {
 }
 
 enum_from_primitive! {
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
     pub enum Class {
         IN          =   1,
         CS          =   2,
@@ -86,7 +86,7 @@ enum_from_primitive! {
 }
 
 enum_from_primitive!{
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
     pub enum Qclass {
         IN          =   1,
         CS          =   2,
