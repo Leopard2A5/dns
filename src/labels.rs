@@ -1,52 +1,26 @@
-use std::borrow::{Borrow, Cow};
 use std::collections::HashMap;
-use ::utils::write_u16;
 
-pub fn encode_label<'a, T>(
-    target: &mut [u8],
-    pos: &mut usize,
-    encoded_labels: &mut HashMap<Cow<'a, str>, usize>,
-    text: T
-)
-where T: Into<Cow<'a, str>>
-{
-    let initial_pos = *pos;
-    let text = text.into();
+pub fn encode_labels<'a>(
+    encoded_labels: &mut HashMap<&'a str, usize>,
+    pos: usize,
+    address: &'a str
+) -> Vec<u8> {
+    let mut ret: Vec<u8> = vec![];
 
-    if let Some(prior_pos) = encoded_labels.get(&text) {
-        let jump = 0xc000 ^ (*prior_pos) as u16;
-        write_u16(target, pos, jump);
-        return;
+    if encoded_labels.contains_key(address) {
+        let jump_addr = encoded_labels.get(address).unwrap();
+        ret.push(0xc0);
+        ret.push(*jump_addr as u8);
+    } else {
+        encoded_labels.insert(address, pos);
+        for label in address.split('.') {
+            ret.push(label.as_bytes().len() as u8);
+            ret.extend(label.as_bytes());
+        }
+        ret.push(0);
     }
 
-    {
-        let string: &str = text.borrow();
-        let bytes = string.as_bytes();
-        let len = bytes.len();
-
-        target[*pos] = len as u8;
-        *pos += 1;
-        target[*pos..*pos+len].copy_from_slice(bytes);
-        *pos += len;
-    }
-
-    encoded_labels.insert(text, initial_pos);
-}
-
-pub fn encode_labels<'a, T>(
-    target: &mut [u8],
-    pos: &mut usize,
-    mut encoded_labels: &mut HashMap<Cow<'a, str>, usize>,
-    texts: T
-)
-where T: IntoIterator,
-      T::Item: Into<Cow<'a, str>>
-{
-    for text in texts {
-        encode_label(target, pos, &mut encoded_labels, text);
-    }
-    target[*pos] = 0;
-    *pos += 1;
+    ret
 }
 
 #[cfg(test)]
@@ -54,51 +28,31 @@ mod test {
     use super::*;
 
     #[test]
-    fn encode_label_should_prepend_byte_length() {
-        for label in vec!["abcd", "aaö"] {
-            let mut buffer = [0u8; 10];
-            encode_label(&mut buffer, &mut 0, &mut HashMap::new(), label);
-            assert_eq!(buffer[0], label.bytes().len() as u8);
-        }
+    fn encode_labels_should_prepend_byte_length() {
+        assert_eq!(4, encode_labels(&mut HashMap::new(), 0, "abcd")[0]);
+        assert_eq!(3, encode_labels(&mut HashMap::new(), 0, "xxx")[0]);
     }
 
     #[test]
-    fn encode_label_should_encode_string() {
-        for label in vec!["abcd", "aaö"] {
-            let mut buffer = [0u8; 10];
-            encode_label(&mut buffer, &mut 0, &mut HashMap::new(), label);
-            let bytes = label.as_bytes();
-
-            for i in 0..bytes.len() {
-                assert_eq!(buffer[i+1], bytes[i]);
-            }
-        }
-    }
-
-    #[test]
-    fn encode_labels_should_add_null_terminator() {
-        let mut buffer = [0u8; 5];
-        encode_labels(&mut buffer, &mut 0, &mut HashMap::new(), vec!["aaa"]);
-        assert_eq!("aaa".as_bytes(), &buffer[1..4]);
-        assert_eq!(0, buffer[4]);
+    fn encode_labels_should_encode_string() {
+        let encoded = encode_labels(&mut HashMap::new(), 0, "abcd.aao");
+        assert_eq!(&encoded, &[4, 97, 98, 99, 100, 3, 97, 97, 111, 0]);
     }
 
     #[test]
     fn encode_label_should_add_data_to_map() {
-        let mut buffer = [0u8; 20];
         let mut map = HashMap::new();
-        encode_label(&mut buffer, &mut 5, &mut map, "aa");
+        encode_labels(&mut map, 5, "aa.bb");
 
-        assert_eq!(Some(&5usize), map.get("aa"));
+        assert_eq!(Some(&5usize), map.get("aa.bb"));
     }
 
     #[test]
     fn encode_label_should_write_ref() {
-        let mut buffer = [0u8; 20];
         let mut map = HashMap::new();
-        map.insert(Cow::Borrowed("aa"), 5);
+        map.insert("aa.bb", 5);
 
-        encode_label(&mut buffer, &mut 2, &mut map, "aa");
-        assert_eq!(&buffer[2..4], &[0xc0, 5]);
+        let buffer = encode_labels(&mut map, 0, "aa.bb");
+        assert_eq!(&buffer[0..2], &[0xc0, 5]);
     }
 }

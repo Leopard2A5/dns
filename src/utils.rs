@@ -19,3 +19,15 @@ pub fn write_u32(target: &mut[u8], pos: &mut usize, val: u32) {
     }
     *pos += 4;
 }
+
+pub fn append_u16(buffer: &mut Vec<u8>, val: u16) {
+    let index = buffer.len();
+    buffer.push(0);
+    buffer.push(0);
+
+    let u8ptr = &buffer[index] as *const u8;
+    let u16ptr = u8ptr as *mut u16;
+    unsafe {
+        *u16ptr = val.to_be();
+    }
+}

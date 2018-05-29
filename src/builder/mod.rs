@@ -1,8 +1,11 @@
+mod question;
+
+pub use self::question::Question;
+
 use rand::{Rng, thread_rng};
 use ::enums::*;
-use ::Question;
 use ::labels::*;
-use ::utils::write_u16;
+use utils::{append_u16, write_u16};
 use std::collections::HashMap;
 
 #[derive(Debug)]
@@ -81,8 +84,8 @@ impl<'a> DnsMessageBuilder<'a> {
         self
     }
 
-    pub fn build(self) -> [u8; 512] {
-        let mut buffer = [0u8; 512];
+    pub fn build(self) -> Vec<u8> {
+        let mut buffer = vec![0u8; 12];
 
         write_u16(&mut buffer, &mut 0, self.id);
 
@@ -101,12 +104,13 @@ impl<'a> DnsMessageBuilder<'a> {
         let mut pos = 12;
         let mut encoded_labels = HashMap::new();
         for question in self.questions {
-            let labels = question.labels;
-            encode_labels(&mut buffer, &mut pos, &mut encoded_labels, labels);
+            let encoded_labels = encode_labels(&mut encoded_labels, pos, question.address);
+            buffer.extend(&encoded_labels);
+            pos += encoded_labels.len();
 
-            write_u16(&mut buffer, &mut pos, question.qtype as u16);
+            append_u16(&mut buffer, question.qtype as u16);
 
-            write_u16(&mut buffer, &mut pos, question.qclass as u16);
+            append_u16(&mut buffer, question.qclass as u16);
         }
 
         buffer
@@ -117,7 +121,9 @@ impl<'a> DnsMessageBuilder<'a> {
 mod test {
     use super::*;
     use ::parse;
-    use ::Question;
+    use super::question::Question;
+
+    type ParsedQuestion<'a> = ::Question<'a>;
 
     #[test]
     fn should_init_with_default_id() {
@@ -268,12 +274,12 @@ mod test {
     fn should_allow_adding_questions() {
         let buffer = DnsMessageBuilder::new()
             .add_question(Question::new(
-                vec!["www", "aaa"],
+                "www.aaa",
                 Qtype::MD,
                 Qclass::Wildcard
             ))
             .add_question(Question::new(
-                vec!["heise", "de"],
+                "heise.de",
                 Qtype::A,
                 Qclass::IN
             ))
@@ -281,8 +287,8 @@ mod test {
         let result = parse(&buffer).unwrap();
         assert_eq!(
             vec![
-                Question::new(vec!["www", "aaa"], Qtype::MD, Qclass::Wildcard),
-                Question::new(vec!["heise", "de"], Qtype::A, Qclass::IN)
+                ParsedQuestion::new(vec!["www", "aaa"], Qtype::MD, Qclass::Wildcard),
+                ParsedQuestion::new(vec!["heise", "de"], Qtype::A, Qclass::IN)
             ],
             result.questions()
         );
@@ -292,29 +298,30 @@ mod test {
     fn should_build_with_label_refs() {
         let buffer = DnsMessageBuilder::new()
             .add_question(Question::new(
-                vec!["www"],
+                "www.aaa",
                 Qtype::MD,
                 Qclass::Wildcard
             ))
             .add_question(Question::new(
-                vec!["www", "aaa"],
+                "www.aaa",
                 Qtype::MD,
                 Qclass::Wildcard
             ))
             .add_question(Question::new(
-                vec!["xxx", "aaa", "bbb"],
+                "xxx.aaa.bbb",
                 Qtype::MD,
                 Qclass::Wildcard
             ))
             .build();
 
-        assert_eq!(&buffer[12..17], &[3, 119, 119, 119, 0]);
+        println!("{:?}", &buffer[12..]);
 
-        assert_eq!(&buffer[21..23], &[0xc0, 12]);
-        assert_eq!(&buffer[23..28], &[3, 97, 97, 97, 0]);
+        assert_eq!(&buffer[12..21], &[3, 119, 119, 119, 3, 97, 97, 97, 0]);
 
-        assert_eq!(&buffer[32..36], &[3, 120, 120, 120]);
-        assert_eq!(&buffer[36..38], &[0xc0, 23]);
-        assert_eq!(&buffer[38..42], &[3, 98, 98, 98]);
+        assert_eq!(&buffer[25..27], &[0xc0, 12]);
+
+        assert_eq!(&buffer[31..35], &[3, 120, 120, 120]);
+        assert_eq!(&buffer[35..39], &[3, 97, 97, 97]);
+        assert_eq!(&buffer[39..44], &[3, 98, 98, 98, 0]);
     }
 }

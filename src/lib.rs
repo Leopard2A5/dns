@@ -9,9 +9,10 @@ mod errors;
 mod labels;
 mod utils;
 
+pub type ParsedQuestion<'a> = dns_record::Question<'a>;
+
 pub use self::dns_record::{
     parse,
-    Question,
     Record,
     RecordPayload,
 };
@@ -19,3 +20,4 @@ pub use self::dns_record::{
 pub use self::enums::*;
 pub use self::errors::*;
 pub use self::builder::*;
+pub use self::builder::Question;

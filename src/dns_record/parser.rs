@@ -1,6 +1,6 @@
 use ::enums::*;
 use ::errors::*;
-use ::Question;
+use ::ParsedQuestion;
 use std::collections::HashSet;
 use ::dns_record::dns_record::DnsRecord;
 use ::dns_record::records::Record;
@@ -156,7 +156,7 @@ fn parse_labels<'a>(
 fn parse_question<'a>(
     data: &'a [u8],
     pos: &mut usize
-) -> Result<'a, Question<'a>> {
+) -> Result<'a, ParsedQuestion<'a>> {
     let labels = parse_labels(data, pos, &mut HashSet::new())?;
 
     let qtype = read_u16(data, pos);
@@ -165,13 +165,13 @@ fn parse_question<'a>(
     let qclass = read_u16(data, pos);
     let qclass = Qclass::from_u16(qclass).unwrap();
 
-    Ok(Question::new(labels, qtype, qclass))
+    Ok(ParsedQuestion::new(labels, qtype, qclass))
 }
 
 fn  questions<'a>(
     data: &'a [u8],
     pos: &mut usize
-) -> Result<'a, Vec<Question<'a>>> {
+) -> Result<'a, Vec<ParsedQuestion<'a>>> {
     let mut questions = vec![];
 
     for _ in 0..qdcount(data) {
@@ -224,6 +224,7 @@ fn answers<'a>(
 #[cfg(test)]
 mod test {
     use super::*;
+    use ::ParsedQuestion;
     use ::labels::encode_labels;
     use ::utils::{write_u16, write_u32};
     use std::collections::HashMap;
@@ -391,11 +392,17 @@ mod test {
         buffer[5] = 1; // 1 question
 
         let mut pos = 12;
-        encode_labels(&mut buffer, &mut pos, &mut HashMap::new(), vec!["www", "google", "com"]);
+        let encoded_labels = encode_labels(
+            &mut HashMap::new(),
+            pos,
+            "www.google.com"
+        );
+        buffer[pos..pos+encoded_labels.len()].copy_from_slice(&encoded_labels);
+        pos += encoded_labels.len();
         write_u16(&mut buffer, &mut pos, Qtype::A as u16);
         write_u16(&mut buffer, &mut pos, Qclass::IN as u16);
 
-        let expected = Question::new(
+        let expected = ParsedQuestion::new(
             vec!["www", "google", "com"],
             Qtype::A,
             Qclass::IN
@@ -411,21 +418,33 @@ mod test {
         buffer[5] = 2; // 2 questions
 
         let mut pos = 12;
-        encode_labels(&mut buffer, &mut pos, &mut HashMap::new(), vec!["www", "google", "com"]);
+        let encoded_labels = encode_labels(
+            &mut HashMap::new(),
+            pos,
+            "www.google.com"
+        );
+        buffer[pos..pos+encoded_labels.len()].copy_from_slice(&encoded_labels);
+        pos += encoded_labels.len();
         write_u16(&mut buffer, &mut pos, Qtype::A as u16);
         write_u16(&mut buffer, &mut pos, Qclass::IN as u16);
 
-        encode_labels(&mut buffer, &mut pos, &mut HashMap::new(), vec!["www", "heise", "de"]);
+        let encoded_labels = encode_labels(
+            &mut HashMap::new(),
+            pos,
+            "www.heise.de"
+        );
+        buffer[pos..pos+encoded_labels.len()].copy_from_slice(&encoded_labels);
+        pos += encoded_labels.len();
         write_u16(&mut buffer, &mut pos, Qtype::NS as u16);
         write_u16(&mut buffer, &mut pos, Qclass::CS as u16);
 
         let expected = vec![
-            Question::new(
+            ParsedQuestion::new(
                 vec!["www", "google", "com"],
                 Qtype::A,
                 Qclass::IN
             ),
-            Question::new(
+            ParsedQuestion::new(
                 vec!["www", "heise", "de"],
                 Qtype::NS,
                 Qclass::CS
@@ -442,7 +461,13 @@ mod test {
         buffer[5] = 2; // 2 questions
 
         let mut pos = 12;
-        encode_labels(&mut buffer, &mut pos, &mut HashMap::new(), vec!["google", "com"]);
+        let encoded_labels = encode_labels(
+            &mut HashMap::new(),
+            pos,
+            "google.com"
+        );
+        buffer[pos..pos+encoded_labels.len()].copy_from_slice(&encoded_labels);
+        pos += encoded_labels.len();
 
         write_u16(&mut buffer, &mut pos, Qtype::A as u16);
         write_u16(&mut buffer, &mut pos, Qclass::IN as u16);
@@ -452,12 +477,12 @@ mod test {
         write_u16(&mut buffer, &mut pos, Qclass::CH as u16);
 
         let expected = vec![
-            Question::new(
+            ParsedQuestion::new(
                 vec!["google", "com"],
                 Qtype::A,
                 Qclass::IN
             ),
-            Question::new(
+            ParsedQuestion::new(
                 vec!["google", "com"],
                 Qtype::NS,
                 Qclass::CH
@@ -496,7 +521,13 @@ mod test {
         write_u16(&mut buffer, &mut 6, 1);
 
         let mut pos = 12;
-        encode_labels(&mut buffer, &mut pos, &mut HashMap::new(), vec!["google", "com"]);
+        let encoded_labels = encode_labels(
+            &mut HashMap::new(),
+            pos,
+            "google.com"
+        );
+        buffer[pos..pos+encoded_labels.len()].copy_from_slice(&encoded_labels);
+        pos += encoded_labels.len();
         write_u16(&mut buffer, &mut pos, Type::A as u16);
         write_u16(&mut buffer, &mut pos, Class::IN as u16);
         write_u32(&mut buffer, &mut pos, 32); // TTL
@@ -521,7 +552,13 @@ mod test {
         write_u16(&mut buffer, &mut 6, 1);
 
         let mut pos = 12;
-        encode_labels(&mut buffer, &mut pos, &mut HashMap::new(), vec!["google", "com"]);
+        let encoded_labels = encode_labels(
+            &mut HashMap::new(),
+            pos,
+            "google.com"
+        );
+        buffer[pos..pos+encoded_labels.len()].copy_from_slice(&encoded_labels);
+        pos += encoded_labels.len();
 
         {
             write_u16(&mut buffer, &mut pos, 18);
