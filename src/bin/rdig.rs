@@ -10,11 +10,9 @@ use dns::parse;
 use std::net::UdpSocket;
 use clap::{App, Arg};
 
-const VERSION: &'static str = env!("CARGO_PKG_VERSION");
-
-fn main() -> std::io::Result<()> {
+fn main() {
     let matches = App::new("rdig")
-        .version(VERSION)
+        .version(env!("CARGO_PKG_VERSION"))
         .author("René Perschon <rperschon85@gmail.com>")
         .about("rust dig impl")
         .arg(Arg::with_name("recurse")
@@ -36,14 +34,21 @@ fn main() -> std::io::Result<()> {
         .with_rd(value_t_or_exit!(matches, "recurse", bool))
         .build();
 
-    let mut socket = UdpSocket::bind("0.0.0.0:3400")?;
-    socket.send_to(&bytes, "8.8.8.8:53")?;
+    let mut socket = UdpSocket::bind("0.0.0.0:34000")
+        .expect("Could not bind to 0.0.0.0:34000");
+    socket.send_to(&bytes, "8.8.8.8:53")
+        .expect("Failed to send packet to 8.8.8.8:53");
     let mut buffer = [0u8; 512];
     socket.recv(&mut buffer);
 
-    let result = parse(&buffer);
-    let json = serde_json::to_string_pretty(&result).unwrap();
-    println!("{}", json);
-
-    Ok(())
+    match parse(&buffer) {
+        Ok(answer) => {
+            let json = serde_json::to_string_pretty(&answer).unwrap();
+            println!("{}", json);
+        },
+        Err(e) => {
+            eprintln!("Error: {:?}: {}", e.kind, &e.msg);
+            std::process::exit(1);
+        }
+    };
 }
